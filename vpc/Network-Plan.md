@@ -72,6 +72,11 @@ All accounts
   - **Region 1 (us-east-1)**: `10.12.0.0 – 10.13.255.255`
   - **Region 2 (us-west-2)**: `10.14.0.0 – 10.15.255.255`
 
+### **Network Account**
+- **CIDR**: `10.16.0.0/14`
+  - **Region 1 (us-east-1)**: `10.16.0.0 – 10.17.255.255`
+  - **Region 2 (us-west-2)**: `10.18.0.0 – 10.19.255.255`
+
 ```
 
 For Cross account we will setup network account for the transit gateway account cross connections
