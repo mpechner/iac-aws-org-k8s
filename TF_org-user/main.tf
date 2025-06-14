@@ -1,4 +1,4 @@
-# dev`
+# dev
 provider "aws" {
   alias  = "dev"
   region = "us-west-1"

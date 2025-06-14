@@ -214,7 +214,7 @@ CIDR and IP Range for Each Account and Region
   - **Region 1 (us-east-1)**: `10.8.0.0 – 10.9.255.255`
   - **Region 2 (us-west-1)**: `10.10.0.0 – 10.11.255.255`
 
-### 🌐 Region 1 — `10.8.0.0/15`
+### 🌐 Region 1 — `10.8.0.0/16`
 
 | AZ   | Subnet Type | CIDR Block       | Size (IPs) | Description                       |
 |------|-------------|------------------|------------|-----------------------------------|
@@ -227,11 +227,11 @@ CIDR and IP Range for Each Account and Region
 | c    | Public      | `10.8.64.0/24`   | 256        |                                   |
 |      | Private     | `10.8.65.0/20`   | 4096       |                                   |
 |      | DB          | `10.8.81.0/26`   | 64         |                                   |
-| spare | —          | `10.8.96.0/17`   | ~32K       | Reserved for future needs         |
+| spare | —          | `10.8.96.0/19`   | 8192       | Reserved for future needs         |
 
 ---
 
-### 🌐 Region 2 — `10.10.0.0/15`
+### 🌐 Region 2 — `10.10.0.0/16`
 
 | AZ   | Subnet Type | CIDR Block       | Size (IPs) | Description                       |
 |------|-------------|------------------|------------|-----------------------------------|
@@ -244,7 +244,7 @@ CIDR and IP Range for Each Account and Region
 | c    | Public      | `10.10.64.0/24`  | 256        |                                   |
 |      | Private     | `10.10.65.0/20`  | 4096       |                                   |
 |      | DB          | `10.10.81.0/26`  | 64         |                                   |
-| spare | —          | `10.10.96.0/17`  | ~32K       | Reserved for future needs         |
+| spare | —          | `10.10.96.0/19`  | 8192       | Reserved for future needs         |
 
 ---
 
