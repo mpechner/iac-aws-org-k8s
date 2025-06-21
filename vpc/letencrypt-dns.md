@@ -1,6 +1,8 @@
-# First Lets Encrypt with route 53
+# First Let’s Encrypt with Route 53
 
-I have used other peoples setups that just handle let encrypt, but never setit up on my own. The folllwing is the reading list from chatgpt. 
+I have used other people’s setups that just handle Let’s Encrypt, but never set it up on my own. The following is the reading list from ChatGPT.
+
+---
 
 # Setting Up Let’s Encrypt with Route 53 DNS Validation
 
@@ -18,23 +20,25 @@ I have used other peoples setups that just handle let encrypt, but never setit u
 
 3. **AWS Route 53 API Documentation**  
    API Reference for managing Route 53 records (used by Certbot plugin):  
-   https://docs.aws.amazon.com/route53/latest/APIReference/Welcome.html
+  https://docs.aws.amazon.com/Route53/latest/APIReference/Welcome.html
+
+  https://registry.terraform.io/providers/vancluever/acme/latest/docs
+
+
+https://letsencrypt.org/
+
 
 ---
 
 ## Tutorials & Community Guides
 
 4. **How to Use Certbot with Route 53 DNS for Let’s Encrypt**  
-   Step-by-step guide including IAM permissions and automation:  
-   https://medium.com/@ryanmcgeary/lets-encrypt-with-route53-68b8e5b77f90
+   Updated step-by-step guide including IAM permissions and automation:  
+   https://johnrix.medium.com/automating-dns-challenge-based-letsencrypt-certificates-with-aws-route-53-8ba799dd207b
 
-5. **Issuing Let’s Encrypt Certificates using Route 53 DNS Challenge with Terraform**  
-   Tutorial on automation with Terraform and Certbot:  
-   https://learn.hashicorp.com/tutorials/terraform/letsencrypt-route53
+https://www.opencredo.com/blogs/letsencrypt-terraform
 
-6. **GitHub Example: certbot-route53-dns-01-example**  
-   Example repo showing certbot + Route 53 DNS validation:  
-   https://github.com/jrnelson/certbot-route53-example
+https://github.com/opencredo/letsencrypt-terraform
 
 ---
 
