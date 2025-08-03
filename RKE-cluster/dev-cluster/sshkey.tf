@@ -4,7 +4,9 @@ resource "tls_private_key" "rke_ssh" {
 }
 
 resource "aws_secretsmanager_secret" "rke_ssh_keypair" {
-  name = "rke-ssh-keypair"
+  name = "rke-ssh"
+  recovery_window_in_days = 0  # Delete immediately on destroy
+  force_overwrite_replica_secret = true
 }
 
 resource "aws_secretsmanager_secret_version" "rke_ssh_keypair_version" {
