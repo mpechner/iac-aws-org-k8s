@@ -92,6 +92,18 @@ variable "ansible_ssh_private_key_file" {
   default     = "~/.ssh/id_rsa"
 }
 
+variable "ansible_repo" {
+  description = "Git repository URL for Ansible playbooks"
+  type        = string
+  default     = "https://github.com/your-org/your-ansible-repo.git"
+}
+
+variable "ansible_playbook" {
+  description = "Ansible playbook file name"
+  type        = string
+  default     = "playbook.yml"
+}
+
 variable "enable_irsa" {
   description = "Whether to enable IRSA (IAM Roles for Service Accounts)"
   type        = bool

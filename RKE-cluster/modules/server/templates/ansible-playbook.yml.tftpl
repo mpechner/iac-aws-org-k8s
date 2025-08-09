@@ -29,7 +29,7 @@
         ansible_user: "{{ ansible_user }}"
         ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-        ansible_python_interpreter: /usr/bin/python3
+        ansible_python_interpreter: /opt/venv/rke-env/bin/python
         private_ip: "{{ item.private_ip_address }}"
         public_ip: "{{ item.public_ip_address }}"
         instance_id: "{{ item.instance_id }}"
@@ -147,12 +147,29 @@
         regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
         replace: '# \1'
 
-    - name: Install Python dependencies
+    - name: Create Python virtual environment directory
+      file:
+        path: /opt/venv
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Create Python virtual environment
+      command: python3 -m venv /opt/venv/rke-env
+      args:
+        creates: /opt/venv/rke-env/bin/activate
+      become: true
+      become_user: "{{ ansible_user }}"
+
+    - name: Install Python dependencies in virtual environment
       pip:
         name:
           - boto3
           - botocore
         state: present
+        virtualenv: /opt/venv/rke-env
+        virtualenv_command: python3 -m venv
 
     - name: Create RKE configuration directory
       file:

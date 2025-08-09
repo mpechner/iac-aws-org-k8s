@@ -16,9 +16,15 @@ variable "subnet_ids" {
 }
 
 variable "server_count" {
-  description = "Number of RKE server nodes to configure (for reference only)"
+  description = "Number of RKE server nodes to create"
   type        = number
   default     = 3
+}
+
+variable "instance_type" {
+  description = "EC2 instance type for RKE server nodes"
+  type        = string
+  default     = "t3.medium"
 }
 
 variable "key_name" {
@@ -90,6 +96,18 @@ variable "ansible_ssh_private_key_file" {
   description = "Path to the SSH private key file for Ansible"
   type        = string
   default     = "~/.ssh/id_rsa"
+}
+
+variable "ansible_repo" {
+  description = "Git repository URL for Ansible playbooks"
+  type        = string
+  default     = "https://github.com/your-org/your-ansible-repo.git"
+}
+
+variable "ansible_playbook" {
+  description = "Ansible playbook file name"
+  type        = string
+  default     = "playbook.yml"
 }
 
 variable "etcd_backup_enabled" {

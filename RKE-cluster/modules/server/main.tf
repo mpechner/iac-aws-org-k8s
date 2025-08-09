@@ -1,22 +1,6 @@
 # RKE Server Module - Main Configuration
 # This module configures existing EC2 instances as RKE server (control plane) nodes using Ansible
 
-# Data source for the latest Amazon Linux 2 AMI (for reference)
-data "aws_ami" "amazon_linux_2" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
 # Security group for RKE server nodes
 resource "aws_security_group" "rke_server" {
   name_prefix = "${var.cluster_name}-rke-server-"
