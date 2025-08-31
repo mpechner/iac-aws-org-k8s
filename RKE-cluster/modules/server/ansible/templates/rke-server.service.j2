@@ -1,0 +1,19 @@
+[Unit]
+Description=RKE Server Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/rke
+ExecStart=/usr/local/bin/rke up --config /opt/rke/cluster.yml
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=HOME=/home/ubuntu
+
+[Install]
+WantedBy=multi-user.target 

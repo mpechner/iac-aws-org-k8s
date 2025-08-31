@@ -1,0 +1,93 @@
+# RKE Server Configuration
+# This file contains the configuration for RKE server (control plane) nodes
+
+# Cluster configuration
+cluster_name: "dev"
+
+# Kubernetes version
+kubernetes_version: "v1.24.10-rke2r1"
+
+# Network configuration
+network:
+  plugin: "flannel"
+  options:
+    flannel_backend_type: vxlan
+    calico_cloud_provider: aws
+
+# Service configuration
+services:
+  etcd:
+    backup_config:
+      enabled: true
+      interval_hours: 12
+      retention: 5
+      s3backupconfig:
+        access_key: ""
+        secret_key: ""
+        bucket_name: ""
+        region: ""
+        endpoint: ""
+  kube_api:
+    service_cluster_ip_range: "10.43.0.0/16"
+    service_node_port_range: "30000-32767"
+    pod_security_policy: false
+    audit_log:
+      enabled: false
+      max_age: 30
+      max_backup: 10
+      max_size: 100
+  kube_controller:
+    cluster_cidr: "10.42.0.0/16"
+    service_cluster_ip_range: "10.43.0.0/16"
+  scheduler:
+    extra_args:
+      v: 2
+  kubelet:
+    cluster_dns_server: "10.43.0.10"
+    cluster_domain: "cluster.local"
+    extra_args:
+      max-pods: 250
+      node-ip: "{{ ansible_default_ipv4.address }}"
+
+# Node configuration
+nodes:
+  - address: "{{ ansible_default_ipv4.address }}"
+    internal_address: "{{ ansible_default_ipv4.address }}"
+    user: "ubuntu"
+    role:
+      - controlplane
+      - etcd
+    ssh_key_path: "~/.ssh/rke-key"
+    labels:
+      node-role.kubernetes.io/controlplane: "true"
+      node-role.kubernetes.io/etcd: "true"
+
+# Authentication
+authentication:
+  strategy: x509
+  sans:
+    - "{{ ansible_default_ipv4.address }}"
+
+# Authorization
+authorization:
+  mode: rbac
+
+# Ingress
+ingress:
+  provider: nginx
+  options:
+    use-forwarded-headers: "true"
+
+# DNS
+dns:
+  provider: coredns
+
+# Monitoring
+monitoring:
+  provider: metrics-server
+
+# Logging
+logging:
+  provider: ""
+  level: info
+  format: json 

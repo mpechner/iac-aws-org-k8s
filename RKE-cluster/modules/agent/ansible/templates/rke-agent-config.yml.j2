@@ -1,0 +1,45 @@
+# RKE Agent Configuration
+# This file contains the configuration for RKE agent nodes
+
+# Node configuration
+node_name: "agent-node"
+node_ip: "{{ ansible_default_ipv4.address }}"
+
+# Docker configuration
+docker:
+  version: "20.10"
+  storage_driver: overlay2
+  log_driver: json-file
+  log_opts:
+    max-size: "100m"
+
+# System configuration
+system:
+  disable_swap: true
+  kernel_modules:
+    - br_netfilter
+    - ip_vs
+    - ip_vs_rr
+    - ip_vs_wrr
+    - ip_vs_sh
+    - nf_conntrack_ipv4
+
+# Network configuration
+network:
+  plugin: flannel
+  options:
+    flannel_backend_type: vxlan
+
+# Cluster configuration
+cluster:
+  name: "dev"
+  type: agent
+
+# Logging configuration
+logging:
+  level: info
+  format: json
+
+# Monitoring configuration
+monitoring:
+  enabled: false 
