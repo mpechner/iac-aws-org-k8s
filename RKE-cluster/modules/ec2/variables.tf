@@ -39,3 +39,27 @@ variable server_ami {
 variable server_instance_type {
     type = string
 }
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID for security group"
+  default     = ""
+}
+
+variable "vpc_cidr" {
+  type        = string
+  description = "VPC CIDR to allow inbound access"
+  default     = ""
+}
+
+variable "instance_profile_name" {
+  type        = string
+  description = "Existing IAM instance profile name to attach to instances. If empty, a new one is created."
+  default     = ""
+}
+
+variable "create_ecr_pull_policy" {
+  type        = bool
+  description = "When creating a role, also attach a minimal ECR pull inline policy"
+  default     = true
+}

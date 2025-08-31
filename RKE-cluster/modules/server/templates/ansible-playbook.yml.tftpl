@@ -18,7 +18,7 @@
       amazon.aws.ec2_instance_info:
         region: "{{ region }}"
         filters:
-          "tag:Name": "{{ cluster_name }}-rke-server*"
+          "tag:Name": "server_*"
           "instance-state-name": "running"
       register: server_instances
 

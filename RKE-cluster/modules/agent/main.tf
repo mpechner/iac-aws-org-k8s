@@ -166,12 +166,30 @@ resource "null_resource" "ansible_provision" {
     instance_ip = var.agent_instance_ips[count.index]
   }
 
+  # Upload generated Ansible files to the instance
+  provisioner "file" {
+    source      = "${path.module}/ansible"
+    destination = "/home/${var.ansible_user}/ansible-playbook"
+
+    connection {
+      type        = "ssh"
+      user        = var.ansible_user
+      private_key = file(var.ansible_ssh_private_key_file)
+      host        = var.agent_instance_ips[count.index]
+    }
+  }
+
   # This will run the Ansible playbook on each agent instance using SSH
   provisioner "remote-exec" {
     inline = [
-      "sleep 30",  # Wait for instance to be ready
-      "cd /opt/ansible-playbook",
-      "ansible-playbook -i 'localhost,' -c local rke-agent-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region}'"
+      "sleep 60",
+      "for i in $(seq 1 30); do if command -v ansible-playbook >/dev/null 2>&1; then break; fi; sleep 5; done",
+      "sudo pip3 install --no-cache-dir --upgrade 'boto3>=1.34.0' 'botocore>=1.34.0' || true",
+      "cd /home/${var.ansible_user}/ansible-playbook/ansible",
+      "ls -la",
+      "ansible-galaxy collection install -r requirements.yml --force || true",
+      "test -f rke-agent-playbook.yml || { echo 'missing rke-agent-playbook.yml in $(pwd)'; exit 1; }",
+      "ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -i 'localhost,' -c local rke-agent-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region}'"
     ]
 
     connection {
