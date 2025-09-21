@@ -66,3 +66,12 @@ You must be connected to the VPN now.
 cd RKE-CLUSTER/dev-cluster/rke
 terraform apply
 ```
+# k9s
+Change 10.8.91.172 to the correct IP address
+```
+scp -i ~/.ssh/rke-key ubuntu@10.8.91.172:/etc/rancher/rke2/rke2.yaml ~/.kube/dev-rke2.yaml
+sed -i '' 's|server: https://127.0.0.1:6443|server: https://10.8.91.172:6443|' ~/.kube/dev-rke2.yaml
+kubectl --kubeconfig ~/.kube/dev-rke2.yaml config rename-context rke2 dev-rke2
+KUBECONFIG="$HOME/.kube/config:$HOME/.kube/dev-rke2.yaml" kubectl config view --flatten > $HOME/.kube/merged
+    mv $HOME/.kube/merged $HOME/.kube/config
+```
