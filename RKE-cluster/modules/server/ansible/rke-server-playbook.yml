@@ -1,85 +1,40 @@
 ---
 - name: Configure RKE Server Nodes
   hosts: localhost
-  gather_facts: false
-  vars:
-    cluster_name: "dev"
-    region: "us-west-2"
-    ansible_user: "ubuntu"
-    ansible_ssh_private_key_file: "~/.ssh/rke-key"
-    docker_version: "20.10"
-    rke_version: "v1.4.0"
-    kubernetes_version: "v1.24.10-rke2r1"
-    etcd_backup_enabled: "true"
-    etcd_backup_retention: "5"
-
-  tasks:
-    - name: Discover RKE server instances
-      amazon.aws.ec2_instance_info:
-        region: "{{ region }}"
-        filters:
-          "tag:Name": "server_*"
-          "instance-state-name": "running"
-      register: server_instances
-
-    - name: Create dynamic inventory for RKE servers
-      add_host:
-        name: "{{ item.public_ip_address | default(item.private_ip_address) }}"
-        groups: rke_servers
-        ansible_user: "{{ ansible_user }}"
-        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
-        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-        ansible_python_interpreter: /opt/venv/rke-env/bin/python
-        private_ip: "{{ item.private_ip_address }}"
-        public_ip: "{{ item.public_ip_address }}"
-        instance_id: "{{ item.instance_id }}"
-      loop: "{{ server_instances.instances }}"
-      when: server_instances.instances | length > 0
-
-    - name: Wait for instances to be ready
-      wait_for:
-        host: "{{ item.public_ip_address | default(item.private_ip_address) }}"
-        port: 22
-        delay: 10
-        timeout: 300
-      loop: "{{ server_instances.instances }}"
-      when: server_instances.instances | length > 0
-
-- name: Configure RKE Server Nodes
-  hosts: rke_servers
   become: true
   gather_facts: true
   vars:
     cluster_name: "dev"
+    region: "us-west-2"
     docker_version: "20.10"
     rke_version: "v1.4.0"
     kubernetes_version: "v1.24.10-rke2r1"
     etcd_backup_enabled: "true"
     etcd_backup_retention: "5"
+    ansible_user: "ubuntu"
 
   tasks:
-    - name: Update system packages
-      yum:
-        name: "*"
-        state: latest
+    - name: Update apt cache and upgrade packages
+      apt:
         update_cache: yes
+        upgrade: dist
 
     - name: Install required packages
-      yum:
+      apt:
         name:
-          - docker
+          - docker.io
           - wget
           - curl
           - git
           - unzip
           - python3
           - python3-pip
-          - yum-utils
-          - device-mapper-persistent-data
+          - python3-venv
+          - awscli
           - lvm2
-          - ntp
           - chrony
         state: present
+        update_cache: yes
 
     - name: Start and enable Docker service
       systemd:
@@ -147,78 +102,73 @@
         regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
         replace: '# \1'
 
-    - name: Create Python virtual environment directory
-      file:
-        path: /opt/venv
-        state: directory
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-        mode: '0755'
-
-    - name: Create Python virtual environment
-      command: python3 -m venv /opt/venv/rke-env
+    - name: Install RKE2 server
+      shell: |
+        curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE=server sh -
       args:
-        creates: /opt/venv/rke-env/bin/activate
-      become: true
-      become_user: "{{ ansible_user }}"
+        creates: /usr/local/bin/rke2
 
-    - name: Install Python dependencies in virtual environment
-      pip:
-        name:
-          - boto3
-          - botocore
-        state: present
-        virtualenv: /opt/venv/rke-env
-        virtualenv_command: python3 -m venv
+    - name: Fetch RKE2 token from Secrets Manager via boto3 (no awscli)
+      shell: |
+        python3 - <<'PY'
+        import boto3
+        import sys
+        client = boto3.client('secretsmanager', region_name='{{ region }}')
+        print(client.get_secret_value(SecretId='{{ cluster_name }}-rke2-token')['SecretString'])
+        PY
+      register: rke2_token
+      changed_when: false
 
-    - name: Create RKE configuration directory
+    - name: Ensure RKE2 config directory exists
       file:
-        path: /opt/rke
+        path: /etc/rancher/rke2
         state: directory
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
         mode: '0755'
 
-    - name: Download RKE binary
-      get_url:
-        url: "https://github.com/rancher/rke/releases/download/{{ rke_version }}/rke_{{ rke_version }}_linux-amd64"
-        dest: /usr/local/bin/rke
-        mode: '0755'
-
-    - name: Create RKE server configuration
-      template:
-        src: rke-server-config.yml.j2
-        dest: /opt/rke/cluster.yml
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
+    - name: Write RKE2 server config
+      copy:
+        dest: /etc/rancher/rke2/config.yaml
+        content: |
+          token: {{ rke2_token.stdout | trim }}
+          write-kubeconfig-mode: "0644"
         mode: '0644'
 
-    - name: Set up RKE server service
-      template:
-        src: rke-server.service.j2
-        dest: /etc/systemd/system/rke-server.service
-        mode: '0644'
-      notify: reload systemd
-
-    - name: Enable RKE server service
+    - name: Enable and start rke2-server
       systemd:
-        name: rke-server
+        name: rke2-server
         enabled: yes
+        state: started
         daemon_reload: yes
 
-    - name: Create cluster initialization script
-      template:
-        src: init-cluster.sh.j2
-        dest: /opt/rke/init-cluster.sh
+    - name: Wait for RKE2 kubeconfig to be generated
+      wait_for:
+        path: /etc/rancher/rke2/rke2.yaml
+        state: present
+        delay: 5
+        timeout: 600
+
+    - name: Ensure .kube directory exists for user
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-        mode: '0755'
+        mode: '0700'
 
-    - name: Initialize cluster on first server
-      command: /opt/rke/init-cluster.sh
-      when: inventory_hostname == groups['rke_servers'][0]
+    - name: Symlink kubeconfig for user
+      file:
+        src: /etc/rancher/rke2/rke2.yaml
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        state: link
+        force: yes
       become: true
       become_user: "{{ ansible_user }}"
+
+    - name: End play (skip legacy RKE tasks)
+      meta: end_play
+
+    - name: End play (skip legacy RKE tasks)
+      meta: end_play
 
   handlers:
     - name: restart docker

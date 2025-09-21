@@ -108,6 +108,7 @@ resource "local_file" "ansible_playbook" {
     ansible_ssh_private_key_file = var.ansible_ssh_private_key_file
     docker_version = var.docker_version
     rke_version = var.rke_version
+    server_endpoint = var.server_endpoint
   })
   filename = "${path.module}/ansible/rke-agent-playbook.yml"
 }
@@ -135,6 +136,7 @@ resource "local_file" "join_cluster_script_template" {
     cluster_name = var.cluster_name
     node_name = "agent-node"
     node_ip = "{{ ansible_default_ipv4.address }}"
+    aws_region  = var.aws_region
   })
   filename = "${path.module}/ansible/templates/join-cluster.sh.j2"
 }
@@ -164,6 +166,7 @@ resource "null_resource" "ansible_provision" {
     docker_version = var.docker_version
     rke_version = var.rke_version
     instance_ip = var.agent_instance_ips[count.index]
+    playbook_template_hash = filesha256("${path.module}/templates/ansible-playbook.yml.tftpl")
   }
 
   # Upload generated Ansible files to the instance
@@ -182,14 +185,13 @@ resource "null_resource" "ansible_provision" {
   # This will run the Ansible playbook on each agent instance using SSH
   provisioner "remote-exec" {
     inline = [
-      "sleep 60",
       "for i in $(seq 1 30); do if command -v ansible-playbook >/dev/null 2>&1; then break; fi; sleep 5; done",
       "sudo pip3 install --no-cache-dir --upgrade 'boto3>=1.34.0' 'botocore>=1.34.0' || true",
       "cd /home/${var.ansible_user}/ansible-playbook/ansible",
       "ls -la",
       "ansible-galaxy collection install -r requirements.yml --force || true",
       "test -f rke-agent-playbook.yml || { echo 'missing rke-agent-playbook.yml in $(pwd)'; exit 1; }",
-      "ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -i 'localhost,' -c local rke-agent-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region}'"
+      "ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -i 'localhost,' -c local rke-agent-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region} ansible_user=${var.ansible_user} server_endpoint=${var.server_endpoint}'"
     ]
 
     connection {

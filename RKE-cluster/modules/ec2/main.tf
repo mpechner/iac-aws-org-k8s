@@ -10,6 +10,30 @@ resource "aws_security_group" "nodes" {
     cidr_blocks = [local.vpc_cidr_resolved]
   }
 
+  # Kubernetes API (RKE2 server)
+  ingress {
+    from_port   = 6443
+    to_port     = 6443
+    protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr_resolved]
+  }
+
+  # RKE2 supervisor port
+  ingress {
+    from_port   = 9345
+    to_port     = 9345
+    protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr_resolved]
+  }
+
+  # VXLAN overlay (Canal/Calico)
+  ingress {
+    from_port   = 8472
+    to_port     = 8472
+    protocol    = "udp"
+    cidr_blocks = [local.vpc_cidr_resolved]
+  }
+
   ingress {
     from_port   = 443
     to_port     = 443
@@ -97,6 +121,13 @@ resource "aws_iam_role_policy" "ec2_describe" {
   name  = "rke-nodes-ec2-describe"
   role  = aws_iam_role.nodes[0].id
   policy = file("${path.module}/policies/ec2-describe-policy.json")
+}
+
+resource "aws_iam_role_policy" "secretsmanager_access" {
+  count = var.instance_profile_name == "" ? 1 : 0
+  name  = "rke-nodes-secretsmanager-access"
+  role  = aws_iam_role.nodes[0].id
+  policy = file("${path.module}/policies/secretsmanager-access-policy.json")
 }
 
 resource "aws_iam_instance_profile" "nodes" {

@@ -93,6 +93,11 @@ variable "ansible_ssh_private_key_file" {
   default     = "~/.ssh/id_rsa"
 }
 
+variable "server_endpoint" {
+  description = "RKE2 server endpoint (host/IP) for agents to join"
+  type        = string
+}
+
 #variable "ansible_repo" {
 #  description = "Git repository URL for Ansible playbooks"
 #  type        = string

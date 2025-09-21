@@ -8,6 +8,20 @@ data "terraform_remote_state" "ec2" {
   }
 }
 
+resource "random_password" "rke2_token" {
+  length  = 48
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "rke2_token" {
+  name = "${local.cluster_name}-rke2-token"
+}
+
+resource "aws_secretsmanager_secret_version" "rke2_token" {
+  secret_id     = aws_secretsmanager_secret.rke2_token.id
+  secret_string = random_password.rke2_token.result
+}
+
 module "rke-server"{
   source= "../../modules/server"
   cluster_name = local.cluster_name
@@ -20,7 +34,8 @@ module "rke-server"{
   server_instance_ips = data.terraform_remote_state.ec2.outputs.server_instance_private_ips
   ansible_user = "ubuntu"
   ansible_ssh_private_key_file = "~/.ssh/rke-key"
-  
+  depends_on = [aws_secretsmanager_secret_version.rke2_token]
+
 }
 
 module "rke-agent" {
@@ -35,5 +50,7 @@ module "rke-agent" {
   agent_instance_ips = data.terraform_remote_state.ec2.outputs.agent_instance_private_ips
   ansible_user = "ubuntu"
   ansible_ssh_private_key_file = "~/.ssh/rke-key"
-  
+  server_endpoint = element(data.terraform_remote_state.ec2.outputs.server_instance_private_ips, 0)
+  depends_on = [aws_secretsmanager_secret_version.rke2_token, module.rke-server]
+
 }

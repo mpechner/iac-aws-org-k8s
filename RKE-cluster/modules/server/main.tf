@@ -171,6 +171,7 @@ resource "local_file" "cluster_init_script_template" {
   content = templatefile("${path.module}/templates/init-cluster.sh.tftpl", {
     cluster_name = var.cluster_name
     ansible_user = var.ansible_user
+    aws_region  = var.aws_region
   })
   filename = "${path.module}/ansible/templates/init-cluster.sh.j2"
 }
@@ -197,6 +198,7 @@ resource "null_resource" "ansible_provision" {
     rke_version = var.rke_version
     kubernetes_version = var.kubernetes_version
     instance_ip = var.server_instance_ips[count.index]
+    playbook_template_hash = filesha256("${path.module}/templates/ansible-playbook.yml.tftpl")
   }
 
   # Upload generated Ansible files to the instance
@@ -215,14 +217,13 @@ resource "null_resource" "ansible_provision" {
   # This will run the Ansible playbook on each server instance using SSH
   provisioner "remote-exec" {
     inline = [
-      "sleep 60",
       "for i in $(seq 1 30); do if command -v ansible-playbook >/dev/null 2>&1; then break; fi; sleep 5; done",
       "sudo pip3 install --no-cache-dir --upgrade 'boto3>=1.34.0' 'botocore>=1.34.0' || true",
       "cd /home/${var.ansible_user}/ansible-playbook/ansible",
       "ls -la",
       "ansible-galaxy collection install -r requirements.yml --force || true",
       "test -f rke-server-playbook.yml || { echo 'missing rke-server-playbook.yml in $(pwd)'; exit 1; }",
-      "ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -i 'localhost,' -c local rke-server-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region}'"
+      "ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -i 'localhost,' -c local rke-server-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region} ansible_user=${var.ansible_user}'"
     ]
 
     connection {

@@ -40,7 +40,7 @@ ssh -i ~/.ssh/openvpn-ssh-keypair.pem openvpnas@54.214.242.159
 
 ```
 cd /usr/local/openvpn_as/scripts/
-./sacli --user openvpn --new_pass password SetLocalPassword
+sudo ./sacli --user openvpn --new_pass APASSWORD SetLocalPassword
 ```
 sign in and Agree to the terms
 
