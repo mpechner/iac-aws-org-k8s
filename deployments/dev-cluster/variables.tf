@@ -50,19 +50,3 @@ variable "letsencrypt_environment" {
   description = "prod or staging"
 }
 
-variable "ingresses" {
-  description = "Ingress definitions to create in the cluster"
-  type = map(object({
-    namespace          = optional(string, "default")
-    host               = string
-    service_name       = string
-    service_port       = number
-    path               = optional(string, "/")
-    path_type          = optional(string, "Prefix")
-    ingress_class_name = optional(string, "traefik")
-    tls_secret_name    = optional(string)
-    cluster_issuer     = optional(string)
-    annotations        = optional(map(string), {})
-  }))
-  default = {}
-}

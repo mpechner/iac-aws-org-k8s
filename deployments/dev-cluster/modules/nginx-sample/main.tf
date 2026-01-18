@@ -16,6 +16,10 @@ locals {
     app         = local.app_name
     environment = var.environment
   }, var.labels)
+  
+  # Backend TLS certificate is managed by ingress module
+  # Secret name format: {service_name}-backend-tls
+  backend_tls_secret = "${local.app_name}-backend-tls"
 }
 
 resource "kubernetes_namespace" "this" {
@@ -44,8 +48,21 @@ resource "kubernetes_config_map" "html" {
       hostname    = var.hostname
       environment = var.environment
       namespace   = var.namespace
-      tls_enabled = var.cluster_issuer != null
+      tls_enabled = true  # Always true since backend TLS is enforced
     })
+  }
+}
+
+# Nginx configuration for HTTPS
+resource "kubernetes_config_map" "nginx_config" {
+  metadata {
+    name      = "${local.app_name}-config"
+    namespace = local.namespace
+    labels    = local.labels
+  }
+
+  data = {
+    "default.conf" = file("${path.module}/config/default.conf")
   }
 }
 
@@ -76,13 +93,25 @@ resource "kubernetes_deployment" "this" {
           image = "nginx:1.25-alpine"
 
           port {
-            container_port = 80
+            container_port = 443
             protocol       = "TCP"
           }
 
           volume_mount {
             name       = "html"
             mount_path = "/usr/share/nginx/html"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "nginx-config"
+            mount_path = "/etc/nginx/conf.d"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "tls"
+            mount_path = "/etc/nginx/ssl"
             read_only  = true
           }
 
@@ -99,8 +128,9 @@ resource "kubernetes_deployment" "this" {
 
           liveness_probe {
             http_get {
-              path = "/"
-              port = 80
+              path   = "/health"
+              port   = 443
+              scheme = "HTTPS"
             }
             initial_delay_seconds = 10
             period_seconds        = 10
@@ -108,8 +138,9 @@ resource "kubernetes_deployment" "this" {
 
           readiness_probe {
             http_get {
-              path = "/"
-              port = 80
+              path   = "/health"
+              port   = 443
+              scheme = "HTTPS"
             }
             initial_delay_seconds = 5
             period_seconds        = 5
@@ -120,6 +151,20 @@ resource "kubernetes_deployment" "this" {
           name = "html"
           config_map {
             name = kubernetes_config_map.html.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "nginx-config"
+          config_map {
+            name = kubernetes_config_map.nginx_config.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "tls"
+          secret {
+            secret_name = local.backend_tls_secret
           }
         }
       }
@@ -140,56 +185,12 @@ resource "kubernetes_service" "this" {
     }
 
     port {
-      port        = 80
-      target_port = 80
+      port        = 443
+      target_port = 443
       protocol    = "TCP"
+      name        = "https"
     }
 
     type = "ClusterIP"
-  }
-}
-
-# Ingress for the sample site
-resource "kubernetes_ingress_v1" "this" {
-  metadata {
-    name      = local.app_name
-    namespace = local.namespace
-    labels    = local.labels
-    annotations = merge(
-      var.ingress_annotations,
-      var.cluster_issuer != null ? {
-        "cert-manager.io/cluster-issuer" = var.cluster_issuer
-      } : {}
-    )
-  }
-
-  spec {
-    ingress_class_name = var.ingress_class_name
-
-    dynamic "tls" {
-      for_each = var.cluster_issuer != null ? [1] : []
-      content {
-        hosts       = [var.hostname]
-        secret_name = "${local.app_name}-tls"
-      }
-    }
-
-    rule {
-      host = var.hostname
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = kubernetes_service.this.metadata[0].name
-              port {
-                number = 80
-              }
-            }
-          }
-        }
-      }
-    }
   }
 }

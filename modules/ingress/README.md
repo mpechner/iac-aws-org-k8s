@@ -71,6 +71,30 @@ module "ingress" {
 ### Optional Variables
 - `letsencrypt_environment` - Use "staging" for testing, "prod" for production
 - `aws_region` - AWS region for Route53 (default: us-west-2)
+- `route53_assume_role_arn` - IAM role for cross-account Route53 access
+
+### Managed Ingresses
+
+The module can manage Kubernetes Ingress resources with **end-to-end TLS**:
+
+```hcl
+ingresses = {
+  myapp = {
+    namespace          = "default"
+    host               = "myapp.example.com"
+    service_name       = "myapp"
+    service_port       = 443
+    cluster_issuer     = "letsencrypt-prod"
+    backend_tls_enabled = true  # Default: always enabled
+  }
+}
+```
+
+**Backend TLS is automatically managed:**
+- Per-namespace CA certificate
+- Per-service backend certificate (cert-manager managed)
+- ServersTransport for Traefik validation
+- Auto-renewal 30 days before expiration
 - `route53_assume_role_arn` - Optional cross-account role for Route53 access
 - `ingresses` - Map of ingress definitions to create in the cluster
 

@@ -89,18 +89,7 @@ resource "aws_security_group" "rke_server" {
 resource "aws_iam_role" "rke_server" {
   name = "${var.cluster_name}-rke-server-role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
+  assume_role_policy = file("${path.module}/policies/ec2-assume-role-policy.json")
 
   tags = var.tags
 }

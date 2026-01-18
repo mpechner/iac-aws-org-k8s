@@ -1,0 +1,33 @@
+{
+  "Version": "2012-10-17",
+  "Id": "org-wide-kms-key-policy",
+  "Statement": [
+    {
+      "Sid": "EnableRootAccountPermissions",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${account_id}:root"
+      },
+      "Action": "kms:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowUseForAllOrgAccounts",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalOrgID": "${org_id}"
+        }
+      }
+    }
+  ]
+}

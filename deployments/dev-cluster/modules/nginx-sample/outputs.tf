@@ -12,12 +12,12 @@ output "service_name" {
 
 output "service_port" {
   description = "Port of the nginx service"
-  value       = 80
+  value       = 443
 }
 
 output "ingress_name" {
-  description = "Name of the ingress"
-  value       = kubernetes_ingress_v1.this.metadata[0].name
+  description = "Name of the ingress (managed by ingress module)"
+  value       = null
 }
 
 output "hostname" {

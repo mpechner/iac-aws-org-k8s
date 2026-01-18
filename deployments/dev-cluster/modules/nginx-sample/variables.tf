@@ -19,11 +19,13 @@ variable "environment" {
 }
 
 variable "domain" {
+  deefault= "dev.foobar.support"
   type        = string
   description = "Domain name for the sample site (e.g., dev.foobar.support)"
 }
 
 variable "hostname" {
+  default = "sample"
   type        = string
   description = "Full hostname for the ingress (e.g., www.dev.foobar.support)"
 }
@@ -32,24 +34,6 @@ variable "replicas" {
   type        = number
   default     = 2
   description = "Number of nginx replicas"
-}
-
-variable "cluster_issuer" {
-  type        = string
-  default     = null
-  description = "Cert-manager ClusterIssuer name for TLS (e.g., letsencrypt-staging)"
-}
-
-variable "ingress_class_name" {
-  type        = string
-  default     = "traefik"
-  description = "Ingress class name"
-}
-
-variable "ingress_annotations" {
-  type        = map(string)
-  default     = {}
-  description = "Additional annotations for the ingress"
 }
 
 variable "labels" {

@@ -72,6 +72,7 @@ variable "ingresses" {
     tls_secret_name    = optional(string)
     cluster_issuer     = optional(string)
     annotations        = optional(map(string), {})
+    backend_tls_enabled = optional(bool, true)  # Always enable backend TLS by default
   }))
   default = {}
 }

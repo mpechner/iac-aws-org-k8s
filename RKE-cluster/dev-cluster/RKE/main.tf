@@ -34,6 +34,11 @@ module "rke-server"{
   server_instance_ips = data.terraform_remote_state.ec2.outputs.server_instance_private_ips
   ansible_user = "ubuntu"
   ansible_ssh_private_key_file = "~/.ssh/rke-key"
+  
+  # Enable etcd backups to S3
+  etcd_backup_enabled = true
+  etcd_backup_bucket  = "mikey-dev-rke-etcd-backups"
+  
   depends_on = [aws_secretsmanager_secret_version.rke2_token]
 
 }

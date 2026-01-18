@@ -8,15 +8,8 @@ terraform {
 
 resource "aws_iam_role" "terraform_execute" {
   name = "terraform-execute"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        AWS = "arn:aws:iam::REDACTED_ACCOUNT_ID:root"
-      },
-      Action = "sts:AssumeRole"
-    }]
+  assume_role_policy = templatefile("${path.module}/policies/terraform-assume-role-policy.json.tftpl", {
+    principal_arn = "arn:aws:iam::REDACTED_ACCOUNT_ID:root"
   })
 }
 
