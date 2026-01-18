@@ -32,6 +32,14 @@ resource "aws_iam_role_policy" "rke_agent_ssm" {
   policy = file("${path.module}/policies/agent-ssm-policy.json")
 }
 
+# Route53 permissions for cert-manager and external-dns
+resource "aws_iam_role_policy" "rke_agent_route53" {
+  name = "${var.cluster_name}-rke-agent-route53-policy"
+  role = aws_iam_role.rke_agent.id
+  
+  policy = file("${path.module}/policies/agent-route53-policy.json")
+}
+
 # OIDC Provider for IRSA (if not already created)
 resource "aws_iam_openid_connect_provider" "rke_oidc" {
   count = var.enable_irsa ? 1 : 0

@@ -32,6 +32,14 @@ resource "aws_iam_role_policy" "rke_server_ssm" {
   policy = file("${path.module}/policies/server-ssm-policy.json")
 }
 
+# Route53 permissions for cert-manager and external-dns
+resource "aws_iam_role_policy" "rke_server_route53" {
+  name = "${var.cluster_name}-rke-server-route53-policy"
+  role = aws_iam_role.rke_server.id
+  
+  policy = file("${path.module}/policies/server-route53-policy.json")
+}
+
 # etcd backup permissions (if using S3)
 resource "aws_iam_role_policy" "rke_server_etcd_backup" {
   count = var.etcd_backup_enabled ? 1 : 0
