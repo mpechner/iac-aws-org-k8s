@@ -44,9 +44,9 @@ variable "root_volume_size" {
 }
 
 variable "comcast_ip" {
-  description = "Your Comcast public IP address for restricted access (CIDR format)"
+  description = "Your public IP address for restricted access (CIDR format). Leave empty to auto-detect your current IP."
   type        = string
-  default     = "0.0.0.0/32"  # Change this to your actual Comcast IP
+  default     = ""  # Empty = auto-detect, or specify like "1.2.3.4/32"
 }
 
 variable "domain" {

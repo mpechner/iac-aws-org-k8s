@@ -3,6 +3,17 @@
 
 # AMI provided via variable
 
+# Automatically detect your current public IP address
+data "http" "my_ip" {
+  url = "https://ipv4.icanhazip.com"
+}
+
+locals {
+  my_ip = chomp(data.http.my_ip.response_body)
+  # Use detected IP if comcast_ip is not provided, otherwise use comcast_ip
+  admin_ip = var.comcast_ip != "" ? var.comcast_ip : "${local.my_ip}/32"
+}
+
 # Get VPC outputs from the VPC module state
 data "terraform_remote_state" "vpc" {
   backend = "s3"
@@ -33,13 +44,13 @@ resource "aws_security_group" "openvpn" {
   description = "Security group for OpenVPN server"
   vpc_id      = data.aws_vpc.selected.id
 
-  # SSH access from your Comcast IP
+  # SSH access from your IP (auto-detected or specified)
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.comcast_ip]
-    description = "SSH access from Comcast IP"
+    cidr_blocks = [local.admin_ip]
+    description = "SSH access from admin IP"
   }
 
   # OpenVPN port
@@ -56,7 +67,7 @@ resource "aws_security_group" "openvpn" {
     from_port   = 943
     to_port     = 943
     protocol    = "tcp"
-    cidr_blocks = [var.comcast_ip]
+    cidr_blocks = [local.admin_ip]
     description = "OpenVPN Admin Web Interface (HTTPS)"
   }
 
@@ -67,7 +78,7 @@ resource "aws_security_group" "openvpn" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = [var.comcast_ip]
+    cidr_blocks = [local.admin_ip]
     description = "OpenVPN Admin Web Interface (HTTP redirect)"
   }
 

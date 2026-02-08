@@ -20,6 +20,11 @@ output "openvpn_security_group_id" {
   value       = aws_security_group.openvpn.id
 }
 
+output "detected_admin_ip" {
+  description = "Detected or configured admin IP address used for security group rules"
+  value       = local.admin_ip
+}
+
 output "openvpn_dns_name" {
   description = "DNS name for the OpenVPN server (if Route53 record created)"
   value       = var.create_dns_record ? "vpn.${var.domain}" : ""

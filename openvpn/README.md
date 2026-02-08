@@ -11,7 +11,8 @@ A complete OpenVPN Access Server solution using **Terraform** for infrastructure
 
 ## 🔒 Security Features
 
-- **Restricted SSH Access**: Only accessible from your Comcast IP address
+- **Automatic IP Detection**: Your public IP is auto-detected and used to restrict admin access
+- **Restricted SSH Access**: Only accessible from your detected/specified IP address
 - **Certificate-based Authentication**: No password-based attacks possible
 - **Strong Encryption**: AES-256-GCM with SHA256 authentication
 - **Network Isolation**: VPN clients get isolated IP range (10.8.0.0/24)
@@ -45,10 +46,12 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 ### 2. Configure Variables
 Edit `terraform/terraform.tfvars`:
 ```hcl
-# Update these values
+# Required: Update these values
 subnet_id = "subnet-your-actual-subnet-id"
 key_pair_name = "your-aws-key-pair-name"
-comcast_ip = "YOUR_ACTUAL_COMCAST_IP/32"  # e.g., "203.0.113.1/32"
+
+# Optional: Your IP will be auto-detected. Override only if needed:
+# comcast_ip = "203.0.113.1/32"
 ```
 
 ### 3. Deploy Infrastructure
@@ -134,6 +137,28 @@ cp pki/private/client2.key /var/www/html/certs/
 - **Mobile**: OpenVPN Connect app
 
 ## 🔍 Troubleshooting
+
+### Auto-Detected IP Address
+
+By default, Terraform automatically detects your public IP address and uses it to restrict SSH and admin web access. The detected IP will be shown in the outputs after `terraform apply`:
+
+```bash
+detected_admin_ip = "203.0.113.1/32"
+```
+
+To override auto-detection and use a specific IP, set it in `terraform.tfvars`:
+```hcl
+comcast_ip = "203.0.113.1/32"
+```
+
+### Finding Your Public IP Manually
+
+```bash
+# Get your current public IP
+curl ifconfig.me
+# or
+curl ipinfo.io/ip
+```
 
 ### Common Issues
 
