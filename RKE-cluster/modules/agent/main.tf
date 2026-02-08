@@ -176,7 +176,7 @@ resource "null_resource" "ansible_provision" {
     inline = [
       "for i in $(seq 1 30); do if command -v ansible-playbook >/dev/null 2>&1; then break; fi; sleep 5; done",
       "sudo pip3 install --no-cache-dir --upgrade 'boto3>=1.34.0' 'botocore>=1.34.0' || true",
-      "cd /home/${var.ansible_user}/ansible-playbook/ansible",
+      "cd /home/${var.ansible_user}/ansible-playbook",
       "ls -la",
       "ansible-galaxy collection install -r requirements.yml --force || true",
       "test -f rke-agent-playbook.yml || { echo 'missing rke-agent-playbook.yml in $(pwd)'; exit 1; }",

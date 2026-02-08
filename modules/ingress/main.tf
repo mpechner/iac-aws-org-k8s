@@ -100,8 +100,68 @@ module "traefik" {
   chart            = var.traefik_chart
   chart_version    = var.traefik_chart_version
   service_type     = var.traefik_service_type
-  set              = var.traefik_set
+  set              = concat(var.traefik_set, [
+    {
+      name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-type"
+      value = "nlb"
+      type  = "string"
+    },
+    {
+      name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-scheme"
+      value = "internet-facing"
+      type  = "string"
+    }
+  ], length(var.public_subnets) > 0 ? [
+    {
+      name  = "service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-subnets"
+      value = join("\\,", var.public_subnets)
+      type  = "string"
+    }
+  ] : [])
   values           = var.traefik_values
+}
+
+# Additional service for internal-only access (separate internal ALB)
+resource "kubernetes_service_v1" "traefik_internal" {
+  count = var.traefik_enabled && var.enable_internal_alb ? 1 : 0
+
+  metadata {
+    name      = "traefik-internal"
+    namespace = var.traefik_namespace
+    annotations = merge(
+      {
+        "service.beta.kubernetes.io/aws-load-balancer-type"     = "nlb"
+        "service.beta.kubernetes.io/aws-load-balancer-internal" = "true"
+        "service.beta.kubernetes.io/aws-load-balancer-scheme"   = "internal"
+        "external-dns.alpha.kubernetes.io/hostname"             = join(",", var.internal_service_domains)
+      },
+      length(var.private_subnets) > 0 ? {
+        "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", var.private_subnets)
+      } : {}
+    )
+  }
+
+  spec {
+    type = "LoadBalancer"
+    selector = {
+      "app.kubernetes.io/name"     = "traefik"
+      "app.kubernetes.io/instance" = var.traefik_name
+    }
+    port {
+      name        = "web"
+      port        = 80
+      target_port = "web"
+      protocol    = "TCP"
+    }
+    port {
+      name        = "websecure"
+      port        = 443
+      target_port = "websecure"
+      protocol    = "TCP"
+    }
+  }
+
+  depends_on = [module.traefik]
 }
 
 module "external_dns" {
@@ -190,7 +250,7 @@ resource "kubernetes_manifest" "traefik_dashboard_middleware" {
   depends_on = [module.traefik]
 }
 
-# Example IngressRoute for Traefik Dashboard
+# Traefik Dashboard IngressRoute (internal-only)
 resource "kubernetes_manifest" "traefik_dashboard_ingressroute" {
   count = var.traefik_enabled ? 1 : 0
 
@@ -210,18 +270,45 @@ resource "kubernetes_manifest" "traefik_dashboard_ingressroute" {
           services = [
             {
               name = "api@internal"
-              port = 8000
+              kind = "TraefikService"
             }
           ]
         }
       ]
       tls = {
-        certResolver = "letsencrypt"
+        secretName = "traefik-dashboard-tls"
       }
     }
   }
 
   depends_on = [module.traefik]
+}
+
+# Certificate for Traefik Dashboard
+resource "kubernetes_manifest" "traefik_dashboard_cert" {
+  count = var.traefik_enabled && var.cert_manager_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "traefik-dashboard-tls"
+      namespace = var.traefik_namespace
+    }
+    spec = {
+      secretName = "traefik-dashboard-tls"
+      dnsNames = [
+        "traefik.${var.route53_domain}"
+      ]
+      issuerRef = {
+        name  = "letsencrypt-${var.letsencrypt_environment}"
+        kind  = "ClusterIssuer"
+        group = "cert-manager.io"
+      }
+    }
+  }
+
+  depends_on = [kubernetes_manifest.letsencrypt_issuer]
 }
 
 # Backend TLS Infrastructure (per namespace)

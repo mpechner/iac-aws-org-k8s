@@ -23,6 +23,11 @@ variable "kubeconfig_path" {
   default = "~/.kube/config"
 }
 
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID for subnet lookups"
+}
+
 variable "route53_zone_id" {
   type        = string
   description = "Route53 hosted zone ID for DNS records"

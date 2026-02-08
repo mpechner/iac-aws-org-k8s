@@ -66,14 +66,58 @@ resource "aws_iam_role_policy" "rke_agent_route53" {
 **ACME Server**: Let's Encrypt Staging v2  
 **Challenge Type**: DNS-01 (via Route53)
 
+### ✅ Load Balancer Configuration - DUAL ALB SETUP
+
+**Public ALB** (Internet-facing):
+- **Purpose**: Serves public-facing applications
+- **Domains**: nginx.dev.foobar.support
+- **Type**: AWS Network Load Balancer (NLB)
+- **Scheme**: internet-facing
+- **Subnets**: 10.8.0.0/24, 10.8.64.0/24, 10.8.128.0/24 (Public subnets in AZ a, b, c)
+- **Access**: Public internet (0.0.0.0/0)
+
+**Internal ALB** (VPC-only):
+- **Purpose**: Serves internal management interfaces
+- **Domains**: traefik.dev.foobar.support, rke.dev.foobar.support
+- **Type**: AWS Network Load Balancer (NLB)
+- **Scheme**: internal
+- **Subnets**: 10.8.16.0/20, 10.8.80.0/20, 10.8.144.0/20 (Private subnets in AZ a, b, c)
+- **Access**: VPN/VPC only (restricted to internal network)
+
+**Subnet Configuration**:
+- Terraform automatically queries VPC subnets based on CIDR blocks
+- Public subnets: Tagged with "public" and matching CIDRs
+- Private subnets: Tagged with "private" and matching CIDRs
+- Load balancers are deployed across 3 availability zones for high availability
+
+**Security**:
+- Public ALB only routes to nginx application pods
+- Internal ALB only accessible from within VPC or via VPN
+- Traefik dashboard protected by internal-only access
+- RKE server management interface isolated from internet
+
 ### ✅ Terraform Configuration - COMPLETE
 
 **File**: `deployments/dev-cluster/terraform.tfvars`
 ```hcl
+vpc_id                  = "vpc-XXXXXXXXXX"  # Get from VPC deployment
 route53_zone_id         = "Z06437531SIUA7T3WCKTM"
 route53_domain          = "dev.foobar.support"
 letsencrypt_email       = "mikey@mikey.com"
 letsencrypt_environment = "staging"
+```
+
+**Get VPC ID**:
+```bash
+# From VPC deployment outputs
+cd /Users/mpechner/dev/tf_take2/VPC/dev
+terraform output vpc_id
+
+# Or query AWS directly
+aws ec2 describe-vpcs \
+  --filters "Name=cidr,Values=10.8.0.0/16" \
+  --query "Vpcs[0].VpcId" \
+  --output text
 ```
 
 ---
@@ -223,7 +267,7 @@ terraform plan
 - Nginx Deployment (3 replicas, HTTPS on port 443)
 - Nginx Service (ClusterIP, port 443)
 - Nginx ConfigMaps (HTML, Nginx config)
-- Ingress: nginx-sample (www.dev.foobar.support)
+- Ingress: nginx-sample (nginx.dev.foobar.support)
 
 **Resources**: ~25-30 resources will be created
 
@@ -316,9 +360,9 @@ kubectl get secret nginx-sample-tls -n nginx-sample -o jsonpath='{.data.tls\.crt
 
 # Verify:
 # - Issuer: (STAGING) Fake LE Intermediate X1
-# - Subject: CN=www.dev.foobar.support
+# - Subject: CN=nginx.dev.foobar.support
 # - Validity: 90 days
-# - DNS Names: www.dev.foobar.support
+# - DNS Names: nginx.dev.foobar.support
 ```
 
 ### Step 4: Verify DNS Record Created
@@ -327,21 +371,21 @@ kubectl get secret nginx-sample-tls -n nginx-sample -o jsonpath='{.data.tls\.crt
 # External-DNS should auto-create A/CNAME record
 aws route53 list-resource-record-sets \
   --hosted-zone-id Z06437531SIUA7T3WCKTM \
-  --query "ResourceRecordSets[?Name=='www.dev.foobar.support.']"
+  --query "ResourceRecordSets[?Name=='nginx.dev.foobar.support.']"
 
 # Should show A record pointing to Traefik LoadBalancer IP
 ```
 
 ```bash
 # Test DNS resolution
-nslookup www.dev.foobar.support
+nslookup nginx.dev.foobar.support
 
 # Should return an IP address (Traefik LoadBalancer)
 ```
 
 ```bash
 # Alternative DNS test
-dig www.dev.foobar.support +short
+dig nginx.dev.foobar.support +short
 
 # Should return an IP address
 ```
@@ -353,7 +397,7 @@ kubectl get ingress -n nginx-sample
 
 # Expected output:
 # NAME           CLASS     HOSTS                      ADDRESS         PORTS     AGE
-# nginx-sample   traefik   www.dev.foobar.support     XX.XX.XX.XX     80, 443   Xm
+# nginx-sample   traefik   nginx.dev.foobar.support     XX.XX.XX.XX     80, 443   Xm
 ```
 
 ```bash
@@ -374,7 +418,7 @@ kubectl get ingress nginx-sample -n nginx-sample -o yaml | grep annotations -A 5
 
 ```bash
 # Test TLS 1.3 connection explicitly
-openssl s_client -connect www.dev.foobar.support:443 -tls1_3 -servername www.dev.foobar.support
+openssl s_client -connect nginx.dev.foobar.support:443 -tls1_3 -servername nginx.dev.foobar.support
 
 # Look for:
 # - Protocol: TLSv1.3
@@ -393,7 +437,7 @@ Cipher    : TLS_AES_256_GCM_SHA384
 
 ```bash
 # Test HTTPS with verbose output
-curl -vI https://www.dev.foobar.support 2>&1 | grep -E 'SSL|TLS'
+curl -vI https://nginx.dev.foobar.support 2>&1 | grep -E 'SSL|TLS'
 
 # Expected output:
 # * TLSv1.3 (OUT), TLS handshake...
@@ -402,7 +446,7 @@ curl -vI https://www.dev.foobar.support 2>&1 | grep -E 'SSL|TLS'
 
 ```bash
 # Test with curl (ignore cert error for staging)
-curl -k -I https://www.dev.foobar.support
+curl -k -I https://nginx.dev.foobar.support
 
 # Should return HTTP 200 OK
 ```
@@ -411,10 +455,10 @@ curl -k -I https://www.dev.foobar.support
 
 ```bash
 # Get full certificate chain
-echo | openssl s_client -connect www.dev.foobar.support:443 -servername www.dev.foobar.support 2>/dev/null | openssl x509 -noout -text
+echo | openssl s_client -connect nginx.dev.foobar.support:443 -servername nginx.dev.foobar.support 2>/dev/null | openssl x509 -noout -text
 
 # Verify:
-# - Subject: CN=www.dev.foobar.support
+# - Subject: CN=nginx.dev.foobar.support
 # - Issuer: CN=(STAGING) Fake LE Intermediate X1
 # - Signature Algorithm: sha256WithRSAEncryption
 # - Public Key: RSA 2048 bit
@@ -423,13 +467,13 @@ echo | openssl s_client -connect www.dev.foobar.support:443 -servername www.dev.
 
 ### Test 4: Browser Testing
 
-1. Open browser: https://www.dev.foobar.support
+1. Open browser: https://nginx.dev.foobar.support
 2. **Expected**: Certificate warning (staging cert is self-signed)
 3. Click "Advanced" → "Proceed anyway"
 4. **Expected**: Nginx sample page loads
 5. Check certificate in browser:
    - Issuer: (STAGING) Fake LE Intermediate X1
-   - Subject: www.dev.foobar.support
+   - Subject: nginx.dev.foobar.support
    - Valid for 90 days
 
 ### Test 5: End-to-End TLS Verification
@@ -450,6 +494,56 @@ kubectl get servertransport -n nginx-sample
 # Expected output:
 # NAME          AGE
 # backend-tls   Xm
+```
+
+### Test 6: Internal ALB Access Verification
+
+**From VPN or Within VPC**:
+
+```bash
+# Test Traefik dashboard (internal-only)
+curl -k https://traefik.dev.foobar.support
+
+# Should return Traefik dashboard HTML
+```
+
+```bash
+# Test RKE server endpoint (internal-only, if configured)
+curl -k https://rke.dev.foobar.support
+
+# Should return service response or Kubernetes API
+```
+
+**From Public Internet** (should FAIL):
+
+```bash
+# This should timeout or refuse connection
+curl --connect-timeout 10 https://traefik.dev.foobar.support
+
+# Expected: Connection timeout or refused (internal ALB not accessible)
+```
+
+**Verify DNS Records**:
+
+```bash
+# Check all three domains are created
+aws route53 list-resource-record-sets \
+  --hosted-zone-id Z06437531SIUA7T3WCKTM \
+  --query "ResourceRecordSets[?Name=='nginx.dev.foobar.support.' || Name=='traefik.dev.foobar.support.' || Name=='rke.dev.foobar.support.']"
+
+# Expected:
+# - nginx.dev.foobar.support → Public ALB IP
+# - traefik.dev.foobar.support → Internal ALB IP (private)
+# - rke.dev.foobar.support → Internal ALB IP (private)
+```
+
+```bash
+# Verify LoadBalancer services
+kubectl get svc -n kube-system | grep traefik
+
+# Expected output:
+# traefik           LoadBalancer   10.x.x.x    PUBLIC-ALB-DNS     80:XXXXX/TCP,443:XXXXX/TCP
+# traefik-internal  LoadBalancer   10.x.x.x    INTERNAL-ALB-DNS   80:XXXXX/TCP,443:XXXXX/TCP
 ```
 
 ---
@@ -497,8 +591,8 @@ terraform apply
 
 **Symptoms**:
 ```bash
-nslookup www.dev.foobar.support
-# Server can't find www.dev.foobar.support: NXDOMAIN
+nslookup nginx.dev.foobar.support
+# Server can't find nginx.dev.foobar.support: NXDOMAIN
 ```
 
 **Diagnosis**:
@@ -576,20 +670,20 @@ Error: urn:ietf:params:acme:error:rateLimited
 
 **Symptoms**:
 ```bash
-curl https://www.dev.foobar.support
+curl https://nginx.dev.foobar.support
 # SSL: certificate verify failed
 ```
 
 **For Staging** (Expected):
 ```bash
 # Use -k to ignore cert verification
-curl -k https://www.dev.foobar.support
+curl -k https://nginx.dev.foobar.support
 ```
 
 **For Production** (Not Expected):
 ```bash
 # Check certificate issuer
-echo | openssl s_client -connect www.dev.foobar.support:443 2>/dev/null | grep "Issuer:"
+echo | openssl s_client -connect nginx.dev.foobar.support:443 2>/dev/null | grep "Issuer:"
 
 # Should show: Let's Encrypt Authority (not staging)
 ```
@@ -676,7 +770,7 @@ kubectl get certificate -n nginx-sample -w
 
 ```bash
 # Check certificate is from Let's Encrypt production
-echo | openssl s_client -connect www.dev.foobar.support:443 -servername www.dev.foobar.support 2>/dev/null | openssl x509 -noout -issuer
+echo | openssl s_client -connect nginx.dev.foobar.support:443 -servername nginx.dev.foobar.support 2>/dev/null | openssl x509 -noout -issuer
 
 # Expected: Issuer: C=US, O=Let's Encrypt, CN=R3
 # NOT: (STAGING) Fake LE Intermediate X1
@@ -684,12 +778,12 @@ echo | openssl s_client -connect www.dev.foobar.support:443 -servername www.dev.
 
 ### Step 6: Browser Verification
 
-1. Open: https://www.dev.foobar.support
+1. Open: https://nginx.dev.foobar.support
 2. **Expected**: Valid green lock, no warnings
 3. Click lock icon → Certificate details
 4. **Verify**:
    - Issuer: Let's Encrypt (R3)
-   - Subject: www.dev.foobar.support
+   - Subject: nginx.dev.foobar.support
    - Valid: Yes (green checkmark)
    - TLS Version: TLS 1.3
 
@@ -719,14 +813,22 @@ echo | openssl s_client -connect www.dev.foobar.support:443 -servername www.dev.
 - [ ] Cert-manager pods running (3/3)
 - [ ] External-DNS pod running
 - [ ] Traefik pods running
+- [ ] **Two LoadBalancer services created** (traefik, traefik-internal)
+- [ ] **Public ALB accessible from internet** (traefik)
+- [ ] **Internal ALB created** (traefik-internal, VPC-only)
 - [ ] ClusterIssuer created (letsencrypt-staging)
 - [ ] Certificate issued and ready (nginx-sample-tls)
-- [ ] DNS record created (www.dev.foobar.support)
+- [ ] **DNS records created for all domains**:
+  - [ ] nginx.dev.foobar.support (public)
+  - [ ] traefik.dev.foobar.support (internal)
+  - [ ] rke.dev.foobar.support (internal)
 - [ ] Ingress shows ADDRESS (Traefik LoadBalancer IP)
-- [ ] HTTPS accessible with curl -k
+- [ ] HTTPS accessible with curl -k (nginx.dev.foobar.support)
 - [ ] TLS 1.3 confirmed with OpenSSL
 - [ ] Backend TLS certificates created
 - [ ] Nginx sample site loads in browser
+- [ ] **Traefik dashboard accessible via VPN** (traefik.dev.foobar.support)
+- [ ] **Internal ALB blocked from public internet**
 - [ ] (Optional) Migrated to production certificates
 - [ ] (Optional) Browser shows valid certificate
 
@@ -757,12 +859,12 @@ kubectl get ingress --all-namespaces
 watch -n 2 'kubectl get certificates -n nginx-sample && kubectl get pods -n nginx-sample'
 
 # Test HTTPS
-curl -k -I https://www.dev.foobar.support
-openssl s_client -connect www.dev.foobar.support:443 -tls1_3
+curl -k -I https://nginx.dev.foobar.support
+openssl s_client -connect nginx.dev.foobar.support:443 -tls1_3
 
 # Check DNS
-nslookup www.dev.foobar.support
-dig www.dev.foobar.support +short
+nslookup nginx.dev.foobar.support
+dig nginx.dev.foobar.support +short
 
 # View logs
 kubectl logs -n cert-manager -l app=cert-manager -f

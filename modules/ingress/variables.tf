@@ -58,6 +58,31 @@ variable "cert_manager_values" { type = list(string) default = [] }
 variable "letsencrypt_email" { type = string description = "Email for Let's Encrypt certificate notifications" }
 variable "letsencrypt_environment" { type = string default = "prod" description = "prod or staging" }
 
+# Internal ALB Configuration
+variable "enable_internal_alb" {
+  type        = bool
+  default     = false
+  description = "Enable internal ALB for Traefik dashboard and internal services"
+}
+
+variable "internal_service_domains" {
+  type        = list(string)
+  default     = []
+  description = "List of internal-only domains (e.g., traefik.dev.foobar.support, rke.dev.foobar.support)"
+}
+
+variable "public_subnets" {
+  type        = list(string)
+  default     = []
+  description = "List of public subnet IDs for internet-facing load balancer"
+}
+
+variable "private_subnets" {
+  type        = list(string)
+  default     = []
+  description = "List of private subnet IDs for internal load balancer"
+}
+
 # Managed Ingresses
 variable "ingresses" {
   description = "Ingress definitions to create in the cluster"

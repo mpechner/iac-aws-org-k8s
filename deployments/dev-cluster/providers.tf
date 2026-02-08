@@ -22,3 +22,39 @@ provider "helm" {
     config_path = var.kubeconfig_path
   }
 }
+
+# Data sources to get VPC subnet IDs
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+
+  filter {
+    name   = "tag:Name"
+    values = ["*public*"]
+  }
+
+  filter {
+    name   = "cidr-block"
+    values = ["10.8.0.0/24", "10.8.64.0/24", "10.8.128.0/24"]
+  }
+}
+
+data "aws_subnets" "private" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+
+  filter {
+    name   = "tag:Name"
+    values = ["*private*"]
+  }
+
+  filter {
+    name   = "cidr-block"
+    values = ["10.8.16.0/20", "10.8.80.0/20", "10.8.144.0/20"]
+  }
+}
+
