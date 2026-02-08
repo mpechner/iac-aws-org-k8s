@@ -89,6 +89,9 @@ terraform apply
 ```
 Copy the secret rke-ssh private key to ~/.ssh/rke-key and set perm 0600
 
+**Wait for EC2 Status Checks:**
+Terraform will automatically wait for all EC2 instances to pass their system and instance status checks before completing. This typically takes 2-3 minutes per instance.
+
 ## Step 6: Bring up RKE server/agents
 Make sure the ec2 nodes are fully up.
 You must be connected to the VPN now.
@@ -96,6 +99,19 @@ You must be connected to the VPN now.
 cd RKE-CLUSTER/dev-cluster/rke
 terraform apply
 ```
+
+**Automated Health Checks:**
+Terraform will automatically verify:
+1. Deploy RKE2 on all server nodes
+2. Wait for the Kubernetes API server to be ready
+3. Verify CNI (Canal) pods are running
+4. Deploy RKE2 on all agent nodes
+5. **Verify all RKE2 services are running** (rke2-server on all servers, rke2-agent on all agents)
+6. Check that nodes are joining the cluster and becoming Ready
+
+**Priority:** The deployment will fail immediately if any RKE2 service is not running. Node readiness is checked but won't fail the deployment as services may take time to fully initialize.
+
+This process typically takes 5-10 minutes.
 
 ## Step 7: Configure kubectl Access
 

@@ -135,3 +135,105 @@ resource "aws_iam_instance_profile" "nodes" {
   name  = "rke-nodes-profile"
   role  = aws_iam_role.nodes[0].name
 }
+
+# Wait for all server instances to pass status checks
+resource "null_resource" "wait_for_servers" {
+  for_each = aws_instance.server_rke_nodes
+
+  triggers = {
+    instance_id = each.value.id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for server instance ${each.key} (${each.value.id}) to pass status checks..."
+      
+      # Assume the terraform-execute role
+      TEMP_CREDS=$(aws sts assume-role \
+        --role-arn "arn:aws:iam::REDACTED_ACCOUNT_ID:role/terraform-execute" \
+        --role-session-name "tf-ec2-health-check-server" \
+        --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+        --output text)
+      
+      export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | awk '{print $1}')
+      export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | awk '{print $2}')
+      export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | awk '{print $3}')
+      
+      for i in $(seq 1 60); do
+        STATUS=$(aws ec2 describe-instance-status \
+          --region us-west-2 \
+          --instance-ids ${each.value.id} \
+          --include-all-instances \
+          --query 'InstanceStatuses[0].[InstanceStatus.Status,SystemStatus.Status]' \
+          --output text 2>/dev/null || echo "initializing initializing")
+        
+        INSTANCE_STATUS=$(echo $STATUS | awk '{print $1}')
+        SYSTEM_STATUS=$(echo $STATUS | awk '{print $2}')
+        
+        if [ "$INSTANCE_STATUS" = "ok" ] && [ "$SYSTEM_STATUS" = "ok" ]; then
+          echo "SUCCESS: ${each.key} passed all status checks!"
+          exit 0
+        fi
+        
+        echo "Progress: ${each.key} - Instance: $INSTANCE_STATUS, System: $SYSTEM_STATUS (attempt $i/60)"
+        sleep 15
+      done
+      
+      echo "TIMEOUT: ${each.key} did not pass status checks within 15 minutes"
+      exit 1
+    EOT
+  }
+
+  depends_on = [aws_instance.server_rke_nodes]
+}
+
+# Wait for all agent instances to pass status checks
+resource "null_resource" "wait_for_agents" {
+  for_each = aws_instance.agent_rke_nodes
+
+  triggers = {
+    instance_id = each.value.id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Waiting for agent instance ${each.key} (${each.value.id}) to pass status checks..."
+      
+      # Assume the terraform-execute role
+      TEMP_CREDS=$(aws sts assume-role \
+        --role-arn "arn:aws:iam::REDACTED_ACCOUNT_ID:role/terraform-execute" \
+        --role-session-name "tf-ec2-health-check-agent" \
+        --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+        --output text)
+      
+      export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | awk '{print $1}')
+      export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | awk '{print $2}')
+      export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | awk '{print $3}')
+      
+      for i in $(seq 1 60); do
+        STATUS=$(aws ec2 describe-instance-status \
+          --region us-west-2 \
+          --instance-ids ${each.value.id} \
+          --include-all-instances \
+          --query 'InstanceStatuses[0].[InstanceStatus.Status,SystemStatus.Status]' \
+          --output text 2>/dev/null || echo "initializing initializing")
+        
+        INSTANCE_STATUS=$(echo $STATUS | awk '{print $1}')
+        SYSTEM_STATUS=$(echo $STATUS | awk '{print $2}')
+        
+        if [ "$INSTANCE_STATUS" = "ok" ] && [ "$SYSTEM_STATUS" = "ok" ]; then
+          echo "SUCCESS: ${each.key} passed all status checks!"
+          exit 0
+        fi
+        
+        echo "Progress: ${each.key} - Instance: $INSTANCE_STATUS, System: $SYSTEM_STATUS (attempt $i/60)"
+        sleep 15
+      done
+      
+      echo "TIMEOUT: ${each.key} did not pass status checks within 15 minutes"
+      exit 1
+    EOT
+  }
+
+  depends_on = [aws_instance.agent_rke_nodes]
+}
