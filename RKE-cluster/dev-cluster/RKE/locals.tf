@@ -10,4 +10,7 @@ locals {
     
     # Array of RKE subnet CIDR blocks
     rke_subnet_cidrs = [for subnet in data.aws_subnet.rke_subnet_details : subnet.cidr_block]
+    
+    # RKE2 kubectl path (can be overridden if needed)
+    rke2_kubectl_path = "/var/lib/rancher/rke2/bin/kubectl"
 }

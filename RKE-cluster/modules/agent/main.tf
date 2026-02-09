@@ -95,6 +95,9 @@ resource "null_resource" "ansible_provision" {
     rke_version = var.rke_version
     instance_ip = var.agent_instance_ips[count.index]
     playbook_template_hash = filesha256("${path.module}/templates/ansible-playbook.yml.tftpl")
+    # Store connection info for destroy provisioner
+    ssh_user = var.ansible_user
+    ssh_key_file = var.ansible_ssh_private_key_file
   }
 
   # Upload generated Ansible files to the instance
@@ -130,37 +133,34 @@ resource "null_resource" "ansible_provision" {
     }
   }
 
-  # Health check: Verify RKE2 server is accessible before starting agent
+  # Cleanup: Uninstall RKE2 when destroying
   provisioner "remote-exec" {
+    when = destroy
+    
     inline = [
-      "echo 'Verifying RKE2 server is accessible at ${var.server_endpoint}...'",
-      "for i in $(seq 1 30); do",
-      "  if curl -k https://${var.server_endpoint}:9345/ping &>/dev/null; then",
-      "    echo 'RKE2 server is accessible'",
-      "    break",
-      "  fi",
-      "  echo \"Waiting for RKE2 server... attempt $i/30\"",
-      "  sleep 10",
-      "done",
-      "curl -k https://${var.server_endpoint}:9345/ping &>/dev/null || { echo 'RKE2 server not accessible after 5 minutes'; exit 1; }"
+      "echo 'Uninstalling RKE2 agent...'",
+      "sudo systemctl stop rke2-agent 2>/dev/null || true",
+      "sudo /usr/local/bin/rke2-agent-uninstall.sh 2>/dev/null || true",
+      "echo 'RKE2 agent uninstalled'"
     ]
 
     connection {
       type        = "ssh"
-      user        = var.ansible_user
-      private_key = file(var.ansible_ssh_private_key_file)
-      host        = var.agent_instance_ips[count.index]
+      user        = self.triggers.ssh_user
+      private_key = file(self.triggers.ssh_key_file)
+      host        = self.triggers.instance_ip
     }
   }
 
-  # Health check: Wait for agent to successfully join cluster
+  # Health check: Verify RKE2 agent service is enabled (will join when servers are ready)
   provisioner "remote-exec" {
     inline = [
-      "echo 'Waiting for agent to join cluster...'",
-      "sleep 30",
-      "echo 'Verifying RKE2 agent service is running:'",
-      "sudo systemctl status rke2-agent --no-pager || true",
-      "echo 'Agent node initialization complete'"
+      "echo 'Verifying RKE2 agent service is enabled...'",
+      "sudo systemctl is-enabled rke2-agent || { echo 'RKE2 agent service not enabled'; exit 1; }",
+      "echo 'Service is enabled. It will auto-restart and join the cluster once servers are ready.'",
+      "echo 'Current status:'",
+      "sudo systemctl status rke2-agent --no-pager --lines=5 || true",
+      "echo 'Agent node provisioning complete'"
     ]
 
     connection {

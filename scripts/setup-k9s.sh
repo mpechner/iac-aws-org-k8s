@@ -19,6 +19,12 @@ CONTEXT_NAME="dev-rke2"
 echo "Setting up kubectl configuration for RKE2 cluster..."
 echo "Server IP: ${SERVER_IP}"
 
+# Clean up any old dev-rke2 context and cluster from previous deployments
+echo "Cleaning up old configurations..."
+kubectl config delete-context ${CONTEXT_NAME} 2>/dev/null || true
+kubectl config delete-cluster default 2>/dev/null || true
+kubectl config delete-user default 2>/dev/null || true
+
 # Check if SSH key exists
 if [ ! -f "${SSH_KEY}" ]; then
   echo "Error: SSH key not found at ${SSH_KEY}"

@@ -26,6 +26,22 @@ resource "aws_security_group" "nodes" {
     cidr_blocks = [local.vpc_cidr_resolved]
   }
 
+  # etcd client port (for RKE2 HA)
+  ingress {
+    from_port   = 2379
+    to_port     = 2379
+    protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr_resolved]
+  }
+
+  # etcd peer port (for RKE2 HA)
+  ingress {
+    from_port   = 2380
+    to_port     = 2380
+    protocol    = "tcp"
+    cidr_blocks = [local.vpc_cidr_resolved]
+  }
+
   # VXLAN overlay (Canal/Calico)
   ingress {
     from_port   = 8472

@@ -192,4 +192,10 @@ variable "server_instance_ips" {
   description = "List of server instance IP addresses for Ansible execution"
   type        = list(string)
   default     = []
+}
+
+variable "rke2_kubectl_path" {
+  description = "Full path to kubectl binary installed by RKE2"
+  type        = string
+  default     = "/var/lib/rancher/rke2/bin/kubectl"
 } 

@@ -136,6 +136,11 @@
           cluster-cidr: "10.42.0.0/16"
           service-cidr: "10.43.0.0/16"
           cni: "canal"
+          %{~ if length(server_instance_ips) > 1 }
+          {% if ansible_default_ipv4.address != '${server_instance_ips[0]}' %}
+          server: https://${server_instance_ips[0]}:9345
+          {% endif %}
+          %{~ endif }
         mode: '0644'
 
     - name: Enable and start rke2-server

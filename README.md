@@ -87,7 +87,20 @@ login and download the profile. User-locked or autologin. Again, since this is a
 cd RKE-CLUSTER/dev-cluster/ec2
 terraform apply
 ```
-Copy the secret rke-ssh private key to ~/.ssh/rke-key and set perm 0600
+
+**IMPORTANT - SSH Key Setup Required:**
+
+Before proceeding to Step 6, you MUST copy the RKE SSH private key:
+
+```bash
+# Quick method - uses default secret name (dev-rke2-ssh-keypair)
+./scripts/get-rke-ssh-key.sh
+
+# Or specify a different secret name
+./scripts/get-rke-ssh-key.sh <secret-name-from-output>
+```
+
+**Without this SSH key, Step 6 will fail with authentication errors!**
 
 **Wait for EC2 Status Checks:**
 Terraform will automatically wait for all EC2 instances to pass their system and instance status checks before completing. This typically takes 2-3 minutes per instance.

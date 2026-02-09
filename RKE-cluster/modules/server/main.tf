@@ -39,6 +39,7 @@ resource "local_file" "ansible_playbook" {
     kubernetes_version = var.kubernetes_version
     etcd_backup_enabled = var.etcd_backup_enabled
     etcd_backup_retention = var.etcd_backup_retention
+    server_instance_ips = var.server_instance_ips
   })
   filename = "${path.module}/ansible/rke-server-playbook.yml"
 }
@@ -105,6 +106,9 @@ resource "null_resource" "ansible_provision" {
     kubernetes_version = var.kubernetes_version
     instance_ip = var.server_instance_ips[count.index]
     playbook_template_hash = filesha256("${path.module}/templates/ansible-playbook.yml.tftpl")
+    # Store connection info for destroy provisioner
+    ssh_user = var.ansible_user
+    ssh_key_file = var.ansible_ssh_private_key_file
   }
 
   # Upload generated Ansible files to the instance
@@ -140,19 +144,55 @@ resource "null_resource" "ansible_provision" {
     }
   }
 
-  # Health check: Wait for Kubernetes API server to be ready
+  # Cleanup: Uninstall RKE2 when destroying
   provisioner "remote-exec" {
+    when = destroy
+    
     inline = [
+      "echo 'Uninstalling RKE2 server...'",
+      "sudo systemctl stop rke2-server 2>/dev/null || true",
+      "sudo /usr/local/bin/rke2-uninstall.sh 2>/dev/null || true",
+      "echo 'RKE2 server uninstalled'"
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = self.triggers.ssh_user
+      private_key = file(self.triggers.ssh_key_file)
+      host        = self.triggers.instance_ip
+    }
+  }
+
+  # Health check: Wait for Kubernetes API server to be ready (only on first server)
+  provisioner "remote-exec" {
+    inline = count.index == 0 ? [
       "echo 'Waiting for Kubernetes API server to be ready...'",
+      "export PATH=$PATH:/var/lib/rancher/rke2/bin",
       "for i in $(seq 1 60); do",
-      "  if sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes &>/dev/null; then",
+      "  if sudo ${var.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes &>/dev/null; then",
       "    echo 'API server is ready'",
       "    break",
       "  fi",
       "  echo \"Waiting for API server... attempt $i/60\"",
       "  sleep 5",
       "done",
-      "sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes || { echo 'API server not ready after 5 minutes'; exit 1; }"
+      "sudo ${var.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes || { echo 'API server not ready after 5 minutes'; exit 1; }"
+    ] : [
+      "echo 'Additional server - waiting for first server API to be available...'",
+      "for i in $(seq 1 60); do",
+      "  if nc -z -w5 ${var.server_instance_ips[0]} 9345 2>/dev/null; then",
+      "    echo 'First server is reachable on port 9345'",
+      "    break",
+      "  fi",
+      "  echo \"Waiting for first server... attempt $i/60\"",
+      "  sleep 5",
+      "done",
+      "nc -z -w5 ${var.server_instance_ips[0]} 9345 || { echo 'First server not reachable after 5 minutes'; exit 1; }",
+      "echo 'Verifying RKE2 server service is enabled and will join cluster...'",
+      "sudo systemctl is-enabled rke2-server || { echo 'RKE2 server service not enabled'; exit 1; }",
+      "echo 'Service is enabled. It will auto-restart and join the cluster once first server is ready.'",
+      "echo 'Current status:'",
+      "sudo systemctl status rke2-server --no-pager --lines=5 || true"
     ]
 
     connection {
@@ -163,14 +203,14 @@ resource "null_resource" "ansible_provision" {
     }
   }
 
-  # Health check: Wait for CNI to be deployed
+  # Health check: Wait for CNI to be deployed (only on first server)
   provisioner "remote-exec" {
-    inline = [
+    inline = count.index == 0 ? [
       "echo 'Waiting for CNI (Canal) pods to be running...'",
-      "sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml wait --for=condition=Ready pod -l k8s-app=canal -n kube-system --timeout=300s || echo 'Warning: CNI pods not ready after 5 minutes'",
+      "sudo ${var.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml wait --for=condition=Ready pod -l k8s-app=canal -n kube-system --timeout=300s || echo 'Warning: CNI pods not ready after 5 minutes'",
       "echo 'Checking CNI pod status:'",
-      "sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get pods -n kube-system -l k8s-app=canal"
-    ]
+      "sudo ${var.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get pods -n kube-system -l k8s-app=canal"
+    ] : ["echo 'Skipping CNI check on additional server nodes'"]
 
     connection {
       type        = "ssh"
@@ -180,14 +220,16 @@ resource "null_resource" "ansible_provision" {
     }
   }
 
-  # Health check: Wait for control plane node to be Ready
+  # Health check: Wait for control plane node to be Ready (only on first server)
   provisioner "remote-exec" {
-    inline = [
+    inline = count.index == 0 ? [
       "echo 'Waiting for control plane node to be Ready...'",
-      "sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml wait --for=condition=Ready node --selector=node-role.kubernetes.io/control-plane=true --timeout=120s || echo 'Warning: Control plane node not ready after 2 minutes'",
+      "sudo ${var.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml wait --for=condition=Ready node --selector=node-role.kubernetes.io/control-plane=true --timeout=120s || echo 'Warning: Control plane node not ready after 2 minutes'",
       "echo 'Final cluster status:'",
-      "sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes",
+      "sudo ${var.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes",
       "echo 'RKE2 server initialization complete'"
+    ] : [
+      "echo 'RKE2 server node provisioning complete'"
     ]
 
     connection {

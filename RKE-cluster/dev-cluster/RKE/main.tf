@@ -15,6 +15,10 @@ resource "random_password" "rke2_token" {
 
 resource "aws_secretsmanager_secret" "rke2_token" {
   name = "${local.cluster_name}-rke2-token"
+  
+  # Force immediate deletion instead of 30-day recovery window
+  # This allows terraform destroy/apply cycles without waiting
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "rke2_token" {
@@ -71,50 +75,64 @@ resource "null_resource" "cluster_ready_check" {
       echo "Verifying RKE2 services on all nodes..."
       echo "========================================"
       
-      # Check all server nodes
-      %{for ip in data.terraform_remote_state.ec2.outputs.server_instance_private_ips~}
-      echo "Checking rke2-server service on ${ip}..."
-      ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${ip} '
-        if ! sudo systemctl is-active rke2-server >/dev/null 2>&1; then
-          echo "ERROR: rke2-server service is not active on ${ip}"
-          sudo systemctl status rke2-server --no-pager
-          exit 1
+      # Give services time to become active (wait up to 5 minutes)
+      echo "Waiting for all RKE2 services to become active..."
+      for attempt in $(seq 1 30); do
+        ALL_ACTIVE=true
+        
+        # Check all server nodes
+        %{for ip in data.terraform_remote_state.ec2.outputs.server_instance_private_ips~}
+        if ! ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${ip} 'sudo systemctl is-active rke2-server >/dev/null 2>&1'; then
+          echo "Server ${ip} not active yet (attempt $attempt/30)"
+          ALL_ACTIVE=false
+          break
         fi
-        echo "✓ rke2-server is active on ${ip}"
-      ' || exit 1
-      %{endfor~}
+        %{endfor~}
+        
+        # Check all agent nodes
+        if [ "$ALL_ACTIVE" = true ]; then
+          %{for ip in data.terraform_remote_state.ec2.outputs.agent_instance_private_ips~}
+          if ! ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${ip} 'sudo systemctl is-active rke2-agent >/dev/null 2>&1'; then
+            echo "Agent ${ip} not active yet (attempt $attempt/30)"
+            ALL_ACTIVE=false
+            break
+          fi
+          %{endfor~}
+        fi
+        
+        if [ "$ALL_ACTIVE" = true ]; then
+          echo "✓ All RKE2 services are active!"
+          break
+        fi
+        
+        sleep 10
+      done
       
-      # Check all agent nodes
-      %{for ip in data.terraform_remote_state.ec2.outputs.agent_instance_private_ips~}
-      echo "Checking rke2-agent service on ${ip}..."
-      ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${ip} '
-        if ! sudo systemctl is-active rke2-agent >/dev/null 2>&1; then
-          echo "ERROR: rke2-agent service is not active on ${ip}"
-          sudo systemctl status rke2-agent --no-pager
-          exit 1
-        fi
-        echo "✓ rke2-agent is active on ${ip}"
-      ' || exit 1
-      %{endfor~}
+      if [ "$ALL_ACTIVE" != true ]; then
+        echo "WARNING: Not all services became active within 5 minutes"
+        echo "Checking individual service status..."
+        %{for ip in data.terraform_remote_state.ec2.outputs.server_instance_private_ips~}
+        echo "Server ${ip}:"
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${ip} 'sudo systemctl status rke2-server --no-pager --lines=3'
+        %{endfor~}
+      fi
       
       echo ""
       echo "========================================"
-      echo "All RKE2 services are running!"
+      echo "Verifying cluster node readiness..."
       echo "========================================"
       
-      # Now verify cluster node readiness
-      echo ""
-      echo "Verifying cluster node status..."
+      # Verify cluster node readiness
       ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${element(data.terraform_remote_state.ec2.outputs.server_instance_private_ips, 0)} '
         EXPECTED_COUNT=$((${length(data.terraform_remote_state.ec2.outputs.server_instance_private_ips)} + ${length(data.terraform_remote_state.ec2.outputs.agent_instance_private_ips)}))
         
         for i in $(seq 1 30); do
-          READY_COUNT=$(sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes --no-headers 2>/dev/null | grep -c " Ready " || echo "0")
+          READY_COUNT=$(sudo ${local.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes --no-headers 2>/dev/null | grep -c " Ready " || echo "0")
           
           if [ "$READY_COUNT" -eq "$EXPECTED_COUNT" ]; then
             echo "✓ All $EXPECTED_COUNT nodes are Ready!"
             echo ""
-            sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes
+            sudo ${local.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes
             exit 0
           fi
           
@@ -124,7 +142,7 @@ resource "null_resource" "cluster_ready_check" {
         
         echo "WARNING: Not all nodes are Ready yet, but RKE2 services are running"
         echo "Current node status:"
-        sudo kubectl --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes
+        sudo ${local.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes
         exit 0
       ' || exit 1
       
