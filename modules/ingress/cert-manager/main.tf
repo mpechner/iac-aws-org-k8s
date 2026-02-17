@@ -14,6 +14,9 @@ resource "helm_release" "cert_manager" {
   version          = var.chart_version
   namespace        = var.namespace
   create_namespace = var.create_namespace
+  timeout          = 300  # 5 minutes
+  wait             = true
+  wait_for_jobs    = true
 
   set = concat(
     [{

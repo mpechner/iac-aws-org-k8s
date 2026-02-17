@@ -97,9 +97,11 @@ module "traefik" {
   ]
   values = [yamlencode({
     service = {
-      annotations = {
-        "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", data.aws_subnets.public.ids)
-      }
+      annotations = merge(
+        length(data.aws_subnets.public.ids) > 0 ? {
+          "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", data.aws_subnets.public.ids)
+        } : {}
+      )
       spec = {
         loadBalancerClass = "service.k8s.aws/nlb"
       }

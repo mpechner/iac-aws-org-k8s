@@ -14,6 +14,9 @@ resource "helm_release" "traefik" {
   version          = var.chart_version
   namespace        = var.namespace
   create_namespace = var.create_namespace
+  timeout          = 600  # 10 minutes to allow for load balancer provisioning
+  wait             = true
+  wait_for_jobs    = true
 
   # Combine default configuration with user-provided set values
   set = concat(
