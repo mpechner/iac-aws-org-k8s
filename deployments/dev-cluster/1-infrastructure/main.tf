@@ -8,7 +8,11 @@
 #   - external-dns: Automatic Route53 DNS record management
 #   - Traefik: Ingress controller with public and internal load balancers
 
-# Deploy cert-manager
+# Validate that required data sources exist
+locals {
+  public_subnet_ids = data.aws_subnets.public.ids
+  private_subnet_ids = data.aws_subnets.private.ids
+}
 module "cert_manager" {
   source = "../../../modules/ingress/cert-manager"
 
@@ -98,8 +102,8 @@ module "traefik" {
   values = [yamlencode({
     service = {
       annotations = merge(
-        length(data.aws_subnets.public.ids) > 0 ? {
-          "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", data.aws_subnets.public.ids)
+        length(local.public_subnet_ids) > 0 ? {
+          "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.public_subnet_ids)
         } : {}
       )
       spec = {
