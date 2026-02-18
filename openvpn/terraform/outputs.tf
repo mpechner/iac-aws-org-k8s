@@ -44,3 +44,13 @@ output "vpn_connection_info" {
     default_user = "openvpn"
   }
 }
+
+# Set these in Admin UI: Configuration → VPN Settings (DNS section)
+output "vpn_dns_settings" {
+  description = "DNS to set in Configuration → VPN Settings so the server pushes AWS internal DNS and 8.8.8.8 to clients"
+  value = {
+    primary_dns   = "10.8.0.2"   # AWS VPC DNS resolver (dev VPC 10.8.0.0/16)
+    secondary_dns = "8.8.8.8"    # Google DNS for internet
+    ui_path       = "Configuration → VPN Settings"
+  }
+}

@@ -27,7 +27,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     },
     {
       name  = "vpcId"
-      value = var.vpc_id
+      value = local.vpc_id
     },
     {
       name  = "enableShield"

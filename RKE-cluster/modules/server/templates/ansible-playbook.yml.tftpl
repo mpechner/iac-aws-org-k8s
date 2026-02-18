@@ -133,6 +133,7 @@
           write-kubeconfig-mode: "0644"
           tls-san:
             - "{{ ansible_default_ipv4.address }}"
+            - "ip-{{ ansible_default_ipv4.address | replace('.', '-') }}.{{ region }}.compute.internal"
           cluster-cidr: "10.42.0.0/16"
           service-cidr: "10.43.0.0/16"
           cni: "canal"
@@ -143,6 +144,15 @@
           {% endif %}
           %{~ endif }
         mode: '0644'
+
+    # Additional servers must wait for the first server to be listening on 9345 before starting rke2-server
+    - name: Wait for first server join port (additional nodes only)
+      wait_for:
+        host: "${server_instance_ips[0]}"
+        port: 9345
+        delay: 10
+        timeout: 600
+      when: ansible_default_ipv4.address != '${server_instance_ips[0]}'
 
     - name: Enable and start rke2-server
       systemd:

@@ -8,10 +8,135 @@
 #   - external-dns: Automatic Route53 DNS record management
 #   - Traefik: Ingress controller with public and internal load balancers
 
-# Validate that required data sources exist
+# Resolve VPC the same way as RKE: by tag Name (e.g. "dev") so we use the same VPC and find subnets reliably
+data "aws_vpc" "by_name" {
+  count = var.vpc_name != null && var.vpc_name != "" ? 1 : 0
+  filter {
+    name   = "tag:Name"
+    values = [var.vpc_name]
+  }
+}
 locals {
-  public_subnet_ids = data.aws_subnets.public.ids
-  private_subnet_ids = data.aws_subnets.private.ids
+  vpc_id = var.vpc_name != null && var.vpc_name != "" ? data.aws_vpc.by_name[0].id : var.vpc_id
+}
+
+# Subnet discovery in resolved VPC: by exact Name tags (matches VPC/dev) first, then role tags, then CIDR
+data "aws_subnets" "public_by_name" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "tag:Name"
+    values = var.public_subnet_names
+  }
+}
+data "aws_subnets" "private_by_name" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "tag:Name"
+    values = var.private_subnet_names
+  }
+}
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "tag:kubernetes.io/role/elb"
+    values = ["1"]
+  }
+}
+data "aws_subnets" "public_by_cidr" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "cidr-block"
+    values = var.public_subnet_cidrs
+  }
+}
+data "aws_subnets" "private" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "tag:kubernetes.io/role/internal-elb"
+    values = ["1"]
+  }
+}
+data "aws_subnets" "private_by_cidr" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "cidr-block"
+    values = var.private_subnet_cidrs
+  }
+}
+
+# Subnet IDs for NLB annotations: passed IDs > name lookup > role-tag > CIDR (so we find and annotate correctly)
+locals {
+  public_subnet_ids = length(var.public_subnet_ids) > 0 ? var.public_subnet_ids : (
+    length(data.aws_subnets.public_by_name.ids) > 0 ? data.aws_subnets.public_by_name.ids : (
+      length(data.aws_subnets.public.ids) > 0 ? data.aws_subnets.public.ids : data.aws_subnets.public_by_cidr.ids
+    )
+  )
+  private_subnet_ids = length(var.private_subnet_ids) > 0 ? var.private_subnet_ids : (
+    length(data.aws_subnets.private_by_name.ids) > 0 ? data.aws_subnets.private_by_name.ids : (
+      length(data.aws_subnets.private.ids) > 0 ? data.aws_subnets.private.ids : data.aws_subnets.private_by_cidr.ids
+    )
+  )
+}
+
+# Tag subnets for AWS Load Balancer Controller discovery (VPC sets role tags; we set cluster tag)
+resource "aws_ec2_tag" "public_subnet_cluster" {
+  for_each    = length(local.public_subnet_ids) > 0 ? toset(local.public_subnet_ids) : toset([])
+  resource_id = each.value
+  key         = "kubernetes.io/cluster/${var.cluster_name}"
+  value       = "shared"
+}
+resource "aws_ec2_tag" "private_subnet_cluster" {
+  for_each    = length(local.private_subnet_ids) > 0 ? toset(local.private_subnet_ids) : toset([])
+  resource_id = each.value
+  key         = "kubernetes.io/cluster/${var.cluster_name}"
+  value       = "shared"
+}
+
+# Diagnostic outputs to debug subnet resolution
+output "vpc_id_resolved" {
+  value       = local.vpc_id
+  description = "VPC ID used for subnet discovery (from vpc_name lookup or vpc_id)"
+}
+output "debug_public_subnets" {
+  value       = local.public_subnet_ids
+  description = "Public subnet IDs (used in Traefik Helm values for public NLB)"
+}
+output "debug_public_subnet_annotation" {
+  value       = length(local.public_subnet_ids) > 0 ? "service.beta.kubernetes.io/aws-load-balancer-subnets = ${join(",", local.public_subnet_ids)}" : "none"
+  description = "Annotation applied to public Traefik Service via Helm values"
+}
+
+output "debug_private_subnets" {
+  value       = local.private_subnet_ids
+  description = "Private subnet IDs found by data source"
+}
+
+output "debug_public_subnet_count" {
+  value       = length(local.public_subnet_ids)
+  description = "Number of public subnets found"
+}
+
+output "debug_private_subnet_count" {
+  value       = length(local.private_subnet_ids)
+  description = "Number of private subnets found"
 }
 module "cert_manager" {
   source = "../../../modules/ingress/cert-manager"
@@ -101,11 +226,9 @@ module "traefik" {
   ]
   values = [yamlencode({
     service = {
-      annotations = merge(
-        length(local.public_subnet_ids) > 0 ? {
-          "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.public_subnet_ids)
-        } : {}
-      )
+      annotations = length(local.public_subnet_ids) > 0 ? {
+        "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.public_subnet_ids)
+      } : {}
       spec = {
         loadBalancerClass = "service.k8s.aws/nlb"
       }
@@ -120,13 +243,17 @@ resource "kubernetes_service_v1" "traefik_internal" {
   metadata {
     name      = "traefik-internal"
     namespace = "traefik"
-    annotations = {
-      "service.beta.kubernetes.io/aws-load-balancer-type"                = "nlb"
-      "service.beta.kubernetes.io/aws-load-balancer-internal"            = "true"
-      "service.beta.kubernetes.io/aws-load-balancer-scheme"              = "internal"
-      "service.beta.kubernetes.io/aws-load-balancer-subnets"             = join(",", data.aws_subnets.private.ids)
-      "external-dns.alpha.kubernetes.io/hostname"                        = "traefik.${var.route53_domain},rancher.${var.route53_domain}"
-    }
+    annotations = merge(
+      {
+        "service.beta.kubernetes.io/aws-load-balancer-type"     = "nlb"
+        "service.beta.kubernetes.io/aws-load-balancer-internal" = "true"
+        "service.beta.kubernetes.io/aws-load-balancer-scheme"   = "internal"
+        "external-dns.alpha.kubernetes.io/hostname"             = "traefik.${var.route53_domain},rancher.${var.route53_domain}"
+      },
+      length(local.private_subnet_ids) > 0 ? {
+        "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.private_subnet_ids)
+      } : {}
+    )
   }
 
   spec {

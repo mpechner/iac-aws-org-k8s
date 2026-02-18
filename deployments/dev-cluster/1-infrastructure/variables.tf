@@ -25,7 +25,53 @@ variable "kubeconfig_path" {
 
 variable "vpc_id" {
   type        = string
-  description = "VPC ID for subnet lookups"
+  description = "VPC ID for subnet lookups (ignored if vpc_name is set)"
+  default     = null
+}
+
+variable "vpc_name" {
+  type        = string
+  default     = "dev"
+  description = "VPC tag Name to look up (same as RKE cluster). When set, used instead of vpc_id so subnets are found in the same VPC."
+}
+
+# Subnet names must match VPC/dev (tag Name). Used for reliable discovery so we find and annotate correctly.
+variable "public_subnet_names" {
+  type        = list(string)
+  default     = ["dev-pub-us-west-2a", "dev-pub-us-west-2b", "dev-pub-us-west-2c"]
+  description = "Public subnet Name tags for discovery. Must match VPC."
+}
+
+variable "private_subnet_names" {
+  type        = list(string)
+  default     = ["dev-priv-us-west-2a", "dev-priv-us-west-2b", "dev-priv-us-west-2c"]
+  description = "Private subnet Name tags for internal NLB (dev-priv-* only; exclude dev-rke-*). Must match VPC."
+}
+
+# Optional: pass subnet IDs from VPC outputs to skip data source lookups
+variable "public_subnet_ids" {
+  type        = list(string)
+  default     = []
+  description = "Public subnet IDs for NLB placement. If set, used instead of data source lookup."
+}
+
+variable "private_subnet_ids" {
+  type        = list(string)
+  default     = []
+  description = "Private subnet IDs for internal NLB placement. If set, used instead of data source lookup."
+}
+
+# CIDR fallback when tag-based lookup returns no subnets (e.g. VPC created before kubernetes.io/role tags)
+variable "public_subnet_cidrs" {
+  type        = list(string)
+  default     = ["10.8.0.0/24", "10.8.64.0/24", "10.8.128.0/24"]
+  description = "Public subnet CIDRs for fallback subnet discovery. Must match VPC layout."
+}
+
+variable "private_subnet_cidrs" {
+  type        = list(string)
+  default     = ["10.8.16.0/20", "10.8.80.0/20", "10.8.144.0/20", "10.8.192.0/20", "10.8.208.0/20", "10.8.224.0/20"]
+  description = "Private subnet CIDRs for fallback subnet discovery. Must match VPC layout."
 }
 
 variable "route53_zone_id" {

@@ -47,6 +47,14 @@ module "vpc" {
   enable_nat_gateway = var.enable_nat_gateway
   single_nat_gateway = var.single_nat_gateway
 
+  # Required for AWS Load Balancer Controller (NLB) subnet discovery
+  public_subnet_tags = {
+    "kubernetes.io/role/elb" = "1"
+  }
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = "1"
+  }
+
   customer_gateways = {}
 
   enable_vpn_gateway = false

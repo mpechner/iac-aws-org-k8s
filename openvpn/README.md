@@ -67,19 +67,19 @@ Visit: `https://YOUR_SERVER_IP:943/admin`
 - Username: `openvpn`
 - Password: `openvpn`
 
-### 5. Configure DNS for Internal Service Resolution
+### 5. Configure DNS for Internal Service Resolution (required for deployment)
 
-For clients to resolve internal AWS services and private hosted zones, configure DNS settings in the OpenVPN Admin interface:
+For clients to resolve internal AWS services and private hosted zones, set DNS on the server so it pushes the correct resolvers to clients. Do this right after deploying the VPN (step 2 in the deployment order).
 
 **Steps:**
-1. Navigate to: `https://YOUR_SERVER_IP:943/admin`
-2. Go to **Configuration** → **VPN Settings** → **DNS Settings**
-3. Configure the following:
+1. Open the Admin UI: `https://YOUR_SERVER_IP:943/admin`
+2. Go to **Configuration** → **VPN Settings** (DNS is under this page).
+3. In the DNS section, set:
 
 **DNS Settings:**
 - ☑ **Have clients use specific DNS servers**
-- **Primary DNS Server**: `10.8.0.2` (AWS VPC DNS resolver for dev VPC)
-- **Secondary DNS Server**: `8.8.8.8` (Google DNS for internet domains)
+- **Primary DNS Server**: `10.8.0.2` (AWS VPC internal DNS resolver for dev VPC `10.8.0.0/16`)
+- **Secondary DNS Server**: `8.8.8.8` (Google DNS for internet resolution)
 
 **DNS Resolution Zones (Optional):**
 - **DNS zones**: `foobar.support` (replace with your internal domain)

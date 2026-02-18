@@ -122,11 +122,12 @@ resource "null_resource" "cluster_ready_check" {
       echo "Verifying cluster node readiness..."
       echo "========================================"
       
-      # Verify cluster node readiness
+      # Verify cluster node readiness (one node can lag; wait up to 8 min for all to be Ready)
       ssh -o StrictHostKeyChecking=no -i ~/.ssh/rke-key ubuntu@${element(data.terraform_remote_state.ec2.outputs.server_instance_private_ips, 0)} '
         EXPECTED_COUNT=$((${length(data.terraform_remote_state.ec2.outputs.server_instance_private_ips)} + ${length(data.terraform_remote_state.ec2.outputs.agent_instance_private_ips)}))
+        MAX_ATTEMPTS=48
         
-        for i in $(seq 1 30); do
+        for i in $(seq 1 $MAX_ATTEMPTS); do
           READY_COUNT=$(sudo ${local.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes --no-headers 2>/dev/null | grep -c " Ready " || echo "0")
           
           if [ "$READY_COUNT" -eq "$EXPECTED_COUNT" ]; then
@@ -136,14 +137,17 @@ resource "null_resource" "cluster_ready_check" {
             exit 0
           fi
           
-          echo "Waiting for nodes to be Ready: $READY_COUNT/$EXPECTED_COUNT (attempt $i/30)"
+          echo "Waiting for nodes to be Ready: $READY_COUNT/$EXPECTED_COUNT (attempt $i/$MAX_ATTEMPTS)"
           sleep 10
         done
         
-        echo "WARNING: Not all nodes are Ready yet, but RKE2 services are running"
+        echo "ERROR: Only $READY_COUNT/$EXPECTED_COUNT nodes are Ready after 8 minutes."
         echo "Current node status:"
         sudo ${local.rke2_kubectl_path} --kubeconfig=/etc/rancher/rke2/rke2.yaml get nodes
-        exit 0
+        echo ""
+        echo "SSH to any server (e.g. ${element(data.terraform_remote_state.ec2.outputs.server_instance_private_ips, 0)}) and run: kubectl get nodes -o wide"
+        echo "Then check the missing/NotReady node: ssh ubuntu@<node-ip> and run: sudo systemctl status rke2-server or rke2-agent, and journalctl -u rke2-server -n 100"
+        exit 1
       ' || exit 1
       
       echo ""

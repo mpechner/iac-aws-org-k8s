@@ -40,12 +40,29 @@ letsencrypt_email       = "your-email@example.com"
 letsencrypt_environment = "staging"  # Use "staging" first, then "prod"
 ```
 
+### Subnet discovery and NLB annotations
+
+We find subnets in the **same VPC as the cluster** (by `vpc_name` tag, default `"dev"`), then resolve IDs in this order: (1) passed `public_subnet_ids` / `private_subnet_ids`, (2) **subnet Name tags** (e.g. `dev-pub-us-west-2a` — must match VPC/dev), (3) role tags (`kubernetes.io/role/elb` / `internal-elb`), (4) CIDR fallback. Those IDs are written into the Traefik and traefik-internal **service annotations** so the AWS Load Balancer Controller can create the NLBs. We also tag those subnets with `kubernetes.io/cluster/<cluster_name> = shared` for controller discovery.
+
 ## Deployment
 
 ```bash
 terraform init
 terraform apply
 ```
+
+### If Terraform wants to create Traefik but it already exists
+
+If state is out of sync (e.g. new state backend) and the plan shows "create" for Traefik:
+
+1. Import only the **Helm release** (the release name is already in use):
+   ```bash
+   terraform import 'module.traefik.helm_release.traefik' traefik/traefik
+   ```
+2. Run **apply**. Terraform will create `traefik-internal` if it doesn’t exist in the cluster (do not import it unless the Service is already there).
+   ```bash
+   terraform apply
+   ```
 
 ## Verification
 

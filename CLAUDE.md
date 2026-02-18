@@ -26,6 +26,7 @@ Infrastructure must be deployed sequentially due to dependencies:
 
 1. **VPC** (`VPC/dev/`) - Network foundation
 2. **OpenVPN** (`openvpn/terraform/`) - VPN access (required for private subnet access)
+   - After apply: set DNS in **Configuration → VPN Settings** (Admin UI): Primary = AWS VPC DNS `10.8.0.2`, Secondary = `8.8.8.8`; enable "Have clients use specific DNS servers". See `openvpn/README.md` § Configure DNS.
 3. **EC2** (`RKE-cluster/dev-cluster/ec2/`) - Kubernetes node instances
 4. **RKE** (`RKE-cluster/dev-cluster/RKE/`) - Kubernetes cluster (requires VPN connection)
 5. **Ingress** (`modules/ingress/`) - Traefik + External-DNS + Cert-Manager

@@ -133,15 +133,15 @@ resource "null_resource" "ansible_provision" {
     }
   }
 
-  # Cleanup: Uninstall RKE2 when destroying
+  # Cleanup: Uninstall RKE2 when destroying (sudo -n = non-interactive; on_failure = continue so destroy does not hang on password prompt)
   provisioner "remote-exec" {
-    when = destroy
-    
+    when        = destroy
+    on_failure  = continue
     inline = [
       "echo 'Uninstalling RKE2 agent...'",
-      "sudo systemctl stop rke2-agent 2>/dev/null || true",
-      "sudo /usr/local/bin/rke2-agent-uninstall.sh 2>/dev/null || true",
-      "echo 'RKE2 agent uninstalled'"
+      "sudo -n systemctl stop rke2-agent 2>/dev/null || true",
+      "sudo -n /usr/local/bin/rke2-agent-uninstall.sh 2>/dev/null || true",
+      "echo 'RKE2 agent uninstalled (or skipped)'"
     ]
 
     connection {

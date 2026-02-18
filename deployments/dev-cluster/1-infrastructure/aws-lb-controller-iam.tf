@@ -269,11 +269,8 @@ data "aws_iam_policy_document" "aws_load_balancer_controller" {
   }
 }
 
-resource "aws_iam_policy" "aws_load_balancer_controller" {
-  name        = "AWSLoadBalancerControllerIAMPolicy-${var.cluster_name}"
-  description = "IAM policy for AWS Load Balancer Controller"
-  policy      = data.aws_iam_policy_document.aws_load_balancer_controller.json
-}
+# Used to build policy ARN in cleanup without referencing the policy resource (avoids cycles)
+data "aws_caller_identity" "current" {}
 
 # Attach to existing EC2 instance role
 # Note: Update this to match your actual RKE server IAM role name
@@ -287,6 +284,41 @@ resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
   count      = var.attach_to_node_role ? 1 : 0
   role       = data.aws_iam_role.nodes[0].name
   policy_arn = aws_iam_policy.aws_load_balancer_controller.arn
+}
+
+# Destroyed before the attachment (depends on it). Runs a short sleep on destroy
+# so that when the attachment is removed next, AWS has time to fully detach
+# before we delete the policy (avoids "Cannot delete a policy attached to entities").
+resource "null_resource" "iam_detach_delay" {
+  depends_on = [aws_iam_role_policy_attachment.aws_load_balancer_controller]
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "sleep 15"
+  }
+}
+
+# Depends on the policy so it is destroyed before the policy. When destroyed, runs
+# detach so the policy can be deleted (Terraform destroys dependents first).
+resource "null_resource" "iam_policy_cleanup" {
+  depends_on = [aws_iam_policy.aws_load_balancer_controller]
+
+  triggers = {
+    policy_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/AWSLoadBalancerControllerIAMPolicy-${var.cluster_name}"
+    role_name  = var.attach_to_node_role ? var.node_iam_role_name : ""
+  }
+
+  provisioner "local-exec" {
+    when = destroy
+    # Only self.triggers allowed in destroy provisioners; 2>/dev/null||true so missing attachment is not an error
+    command = "sh -c '[ -n \"${self.triggers.role_name}\" ] && aws iam detach-role-policy --role-name \"${self.triggers.role_name}\" --policy-arn \"${self.triggers.policy_arn}\" 2>/dev/null || true; sleep 10'"
+  }
+}
+
+resource "aws_iam_policy" "aws_load_balancer_controller" {
+  name        = "AWSLoadBalancerControllerIAMPolicy-${var.cluster_name}"
+  description = "IAM policy for AWS Load Balancer Controller"
+  policy      = data.aws_iam_policy_document.aws_load_balancer_controller.json
 }
 
 # Output the policy ARN for manual attachment if needed

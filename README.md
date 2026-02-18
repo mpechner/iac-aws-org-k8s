@@ -59,13 +59,22 @@ vpn_connection_info = {
 - This subnet is added to the RKE security groups to allow kubectl/k9s access from VPN-connected clients
 - If you change the VPN IP Network in the OpenVPN admin panel, you must also update the `cluster_cidr_blocks` in `RKE-cluster/dev-cluster/RKE/main.tf`
 
-Get the ssh key from secret openvpn-ssh and save the private key to ~/.ssh/openvpn.pem
+**DNS (required for internal resolution):** In the Admin UI go to **Configuration → VPN Settings**. In the DNS section:
+- Enable **Have clients use specific DNS servers**
+- **Primary DNS Server:** `10.8.0.2` (AWS VPC internal DNS for dev VPC)
+- **Secondary DNS Server:** `8.8.8.8`
+- **DNS Resolution Zones (optional):** Add the domain you use for internal services (e.g. `foobar.support`) so VPN clients resolve those hostnames via the VPC DNS (e.g. `nginx.dev.foobar.support`, `rancher.dev.foobar.support`).
+- Save and Update Running Server. See `openvpn/README.md` for more detail.
+
+Get the OpenVPN SSH key (saved to ~/.ssh/openvpn-ssh-keypair.pem):
 ```bash
-chmod 600 ~/.ssh/openvpn.pem 
+./scripts/get-openvpn-ssh-key.sh
+# Or with a different secret name: ./scripts/get-openvpn-ssh-key.sh <secret-name>
 ```
-Set the default password
+
+Set the default password (use the server IP from terraform output):
 ```bash
-ssh -i ~/.ssh/openvpn-ssh-keypair.pem openvpnas@54.214.242.159
+ssh -i ~/.ssh/openvpn-ssh-keypair.pem openvpnas@<SERVER_IP>
 ```
 
 ```bash
