@@ -93,3 +93,14 @@ resource "aws_eip" "openvpn" {
 
   tags = merge(local.common_tags, { Name = "${var.environment}-openvpn-eip" })
 }
+
+# Route53 A record: vpn.<domain_name> (e.g. vpn.dev.foobar.support). Hostname is always "vpn".
+resource "aws_route53_record" "vpn" {
+  count           = var.route53_zone_id != "" && var.domain_name != "" ? 1 : 0
+  zone_id         = var.route53_zone_id
+  name            = "vpn"
+  type            = "A"
+  ttl             = 300
+  records         = [aws_eip.openvpn.public_ip]
+  allow_overwrite = true
+}

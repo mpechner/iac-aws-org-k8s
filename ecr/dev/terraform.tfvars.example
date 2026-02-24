@@ -1,0 +1,14 @@
+# ECR - dev - example tfvars
+# Copy to terraform.tfvars and set account_id, org_id, repository_names.
+
+account_id = "123456789012"
+org_id     = "o-xxxxxxxx" # From Organization output: terraform output -raw org-id
+
+repository_names = [
+  "proxy-dockerhub", # Per-account Docker Hub proxy repo if desired
+  "my-app"
+]
+
+# additional_push_account_ids = ["REDACTED_ACCOUNT_ID"]
+# image_expiration_days = 60
+# use_custom_kms       = true

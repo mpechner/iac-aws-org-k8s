@@ -84,7 +84,7 @@ This document suggests refactoring and documentation improvements to make the re
 ### 3.3 terraform-docs
 **Why:** Auto-generated module inputs/outputs look professional.
 
-**Idea:** `terraform-docs` for key modules (e.g. `deployments/dev-cluster/modules/nginx-sample`, `modules/ingress/traefik`); add to CI or pre-commit; READMEs reference "see generated docs" or embed.
+**Idea:** `terraform-docs` for key modules (e.g. `deployments/modules/nginx-sample`, `modules/ingress/traefik`); add to CI or pre-commit; READMEs reference "see generated docs" or embed.
 
 ---
 

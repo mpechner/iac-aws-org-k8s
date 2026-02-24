@@ -33,4 +33,7 @@ module "openvpn" {
   admin_cidr       = local.admin_ip
   key_name         = aws_key_pair.openvpn_ssh.key_name
   ssh_username     = var.ssh_username
+
+  route53_zone_id = var.route53_zone_id
+  domain_name     = var.domain_name
 }

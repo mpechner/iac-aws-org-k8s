@@ -120,7 +120,7 @@ resource "null_resource" "ansible_provision" {
       "sudo pip3 install --no-cache-dir --upgrade 'boto3>=1.34.0' 'botocore>=1.34.0' || true",
       "cd /home/${var.ansible_user}/ansible-playbook",
       "ls -la",
-      "ansible-galaxy collection install -r requirements.yml --force || true",
+      "for a in 1 2 3 4 5; do ansible-galaxy collection install -r requirements.yml --force && break; [ $a -eq 5 ] && { echo 'Ansible Galaxy unavailable after 5 attempts (e.g. 502). Re-run apply later.'; exit 1; }; echo \"Galaxy attempt $a failed, retrying in 15s...\"; sleep 15; done",
       "test -f rke-agent-playbook.yml || { echo 'missing rke-agent-playbook.yml in $(pwd)'; exit 1; }",
       "ANSIBLE_PYTHON_INTERPRETER=/usr/bin/python3 ansible-playbook -i 'localhost,' -c local rke-agent-playbook.yml --extra-vars 'cluster_name=${var.cluster_name} region=${var.aws_region} ansible_user=${var.ansible_user} server_endpoint=${var.server_endpoint}'"
     ]

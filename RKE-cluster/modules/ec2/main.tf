@@ -176,27 +176,63 @@ resource "aws_iam_role_policy" "secretsmanager_access" {
   count = var.instance_profile_name == "" ? 1 : 0
   name  = "rke-nodes-secretsmanager-access"
   role  = aws_iam_role.nodes[0].id
-  policy = file("${path.module}/policies/secretsmanager-access-policy.json")
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # Read any secret — allows nodes/pods to consume secrets generically.
+        Sid    = "ReadAny"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+        ]
+        Resource = "*"
+      },
+      {
+        # Write access scoped to the openvpn secret prefix (cert publisher CronJob).
+        Sid    = "WriteOpenvpn"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:CreateSecret",
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:${var.openvpn_secret_prefix}*"
+      },
+    ]
+  })
 }
 
 resource "aws_iam_role_policy" "route53_access" {
   count = var.instance_profile_name == "" ? 1 : 0
   name  = "rke-nodes-route53-access"
   role  = aws_iam_role.nodes[0].id
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        # Zone-list and change-status lookups must target *.
+        Sid    = "ListAndGetChange"
+        Effect = "Allow"
+        Action = [
+          "route53:ListHostedZones",
+          "route53:ListHostedZonesByName",
+          "route53:GetChange",
+        ]
+        Resource = "*"
+      },
+      {
+        # Record mutations scoped to specific hosted zones when provided; falls back to * if empty.
+        Sid    = "ChangeRecords"
         Effect = "Allow"
         Action = [
           "route53:ChangeResourceRecordSets",
-          "route53:ListHostedZones",
           "route53:ListResourceRecordSets",
-          "route53:GetChange",
-          "route53:ListHostedZonesByName"
         ]
-        Resource = "*"
-      }
+        Resource = length(var.route53_hosted_zone_ids) > 0 ? [for id in var.route53_hosted_zone_ids : "arn:aws:route53:::hostedzone/${id}"] : ["*"]
+      },
     ]
   })
 }

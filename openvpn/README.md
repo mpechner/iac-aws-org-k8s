@@ -45,6 +45,11 @@ Use defaults or create `devvpn/terraform.tfvars` to override:
 # Optional: subnet_id and vpc_id default from VPC remote state
 # Optional: Your IP is auto-detected; override if needed:
 # comcast_ip = "203.0.113.1/32"
+
+# Optional: Create Route53 A record so VPN is reachable at vpn.<domain_name>
+# For devvpn the FQDN is vpn.dev.foobar.support. Get zone ID from route53/delegate or: aws route53 list-hosted-zones-by-name --dns-name dev.foobar.support
+# route53_zone_id = "Z0xxxxxxxxxxxx"
+# domain_name     = "dev.foobar.support"   # default; hostname is always "vpn"
 ```
 
 ### 3. Run Terraform
@@ -57,20 +62,21 @@ terraform apply
 ```
 
 ### 4. Access OpenVPN Admin Interface
-Visit: `https://YOUR_SERVER_IP:943/admin`
+Visit: `https://YOUR_SERVER_IP:943/admin` (or `https://vpn.dev.foobar.support:943/admin` if `route53_zone_id` is set)
 
 **Default credentials:**
 - Username: `openvpn`
 - Password: `openvpn`
 
-### 5. Configure DNS for Internal Service Resolution (required for deployment)
+### 5. Configure Hostname and DNS (required for deployment)
 
-For clients to resolve internal AWS services and private hosted zones, set DNS on the server so it pushes the correct resolvers to clients. Do this right after deploying the VPN (step 2 in the deployment order).
+Set the hostname to the full domain name, then configure DNS so clients can resolve internal AWS services and private hosted zones. Do this right after deploying the VPN (step 2 in the deployment order).
 
 **Steps:**
 1. Open the Admin UI: `https://YOUR_SERVER_IP:943/admin`
-2. Go to **Configuration** → **VPN Settings** (DNS is under this page).
-3. In the DNS section, set:
+2. Go to **Configuration** → **Network Settings** and set the **hostname** to the full domain name (e.g. `vpn.dev.foobar.support`). Save and Update Running Server if prompted.
+3. Go to **Configuration** → **VPN Settings** (DNS is under this page).
+4. In the DNS section, set:
 
 **DNS Settings:**
 - ☑ **Have clients use specific DNS servers**
@@ -96,13 +102,39 @@ Different VPCs use different DNS resolver IPs. The DNS server is always at `VPC_
 - **Test VPC** (`10.12.0.0/16`): DNS at `10.12.0.2`
 
 **After Configuration:**
-1. Save and Update Running Server
+1. Save and Update Running Server (on the VPN Settings page)
 2. Reconnect your VPN client
 3. Test DNS resolution:
    ```bash
    dig nginx.dev.foobar.support
    # Should return private IPs like 10.8.x.x
    ```
+
+**Using sacli (command line):** You can set hostname and all DNS settings from the server instead of the Admin UI. SSH in as root (or use `sudo`), then run from `/usr/local/openvpn_as/scripts/`. Adjust `HOSTNAME` and `DNS_ZONE` for your environment.
+
+```bash
+cd /usr/local/openvpn_as/scripts
+
+# 1. Hostname (Configuration → Network Settings) — use your VPN FQDN
+HOSTNAME="vpn.dev.foobar.support"
+./sacli --key "host.name" --value "$HOSTNAME" ConfigPut
+
+# 2. Enable "Have clients use specific DNS servers" (Configuration → VPN Settings → DNS)
+./sacli --key "vpn.client.routing.reroute_dns" --value "true" ConfigPut
+
+# 3. Primary DNS 10.8.0.2 (AWS VPC), Secondary 8.8.8.8 (Configuration → VPN Settings → DNS)
+# 4. Optional: DNS Resolution Zones — push domain so clients resolve e.g. nginx.dev.foobar.support via VPC DNS
+DNS_ZONE="foobar.support"   # optional; set to "" to skip
+echo 'push "dhcp-option DNS 10.8.0.2"'  > /tmp/dns.txt
+echo 'push "dhcp-option DNS 8.8.8.8"'   >> /tmp/dns.txt
+[ -n "$DNS_ZONE" ] && echo 'push "dhcp-option DOMAIN '"$DNS_ZONE"'"' >> /tmp/dns.txt
+./sacli --key "vpn.server.config_text" --value_file=/tmp/dns.txt ConfigPut
+
+# 5. Save and update running server
+./sacli start
+```
+
+**Note:** `vpn.server.config_text` replaces any existing custom server directives. If you have other directives (e.g. **Configuration → Advanced VPN → Additional OpenVPN Config**), run `./sacli ConfigQuery`, add the three `push` lines above to the exported config, then use `ConfigReplace` with that file instead of `ConfigPut`. For other VPCs use that VPC’s DNS resolver (e.g. `10.4.0.2` for 10.4.0.0/16).
 
 ### 6. Download Client Configurations
 Visit: `https://YOUR_SERVER_IP:944/`

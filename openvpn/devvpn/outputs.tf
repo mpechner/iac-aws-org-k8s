@@ -39,3 +39,8 @@ output "vpn_dns_settings" {
   description = "DNS to set in Configuration → VPN Settings"
   value       = module.openvpn.vpn_dns_settings
 }
+
+output "vpn_fqdn" {
+  description = "VPN hostname (vpn.<domain_name>). Set when route53_zone_id is provided."
+  value       = module.openvpn.vpn_fqdn
+}

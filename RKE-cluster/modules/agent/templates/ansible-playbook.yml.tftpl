@@ -74,30 +74,6 @@
         regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
         replace: '# \1'
 
-    - name: Create Python virtual environment directory
-      file:
-        path: /opt/venv
-        state: directory
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-        mode: '0755'
-
-    - name: Create Python virtual environment
-      command: python3 -m venv /opt/venv/rke-env
-      args:
-        creates: /opt/venv/rke-env/bin/activate
-      become: true
-      become_user: "{{ ansible_user }}"
-
-    - name: Install Python dependencies in virtual environment
-      pip:
-        name:
-          - boto3
-          - botocore
-        state: present
-        virtualenv: /opt/venv/rke-env
-        virtualenv_command: python3 -m venv
-
     - name: Ensure RKE2 config directory exists
       file:
         path: /etc/rancher/rke2

@@ -1,0 +1,9 @@
+# Route53 hosted zone IDs the node role may modify.
+# Scopes ChangeResourceRecordSets for cert-manager DNS-01 and external-dns.
+# Find zone IDs with:
+#   aws route53 list-hosted-zones-by-name --dns-name dev.foobar.support \
+#     --query 'HostedZones[0].Id' --output text
+#
+# Typical dev setup: one zone for the cluster domain.
+# If the VPN cert uses a different zone, add both here.
+route53_hosted_zone_ids = ["REPLACE_WITH_ZONE_ID"]

@@ -1,0 +1,30 @@
+# Certificate for the OpenVPN Access Server hostname (e.g. vpn.example.com).
+# cert-manager will issue and renew via ACME DNS-01 using the letsencrypt-route53 ClusterIssuer.
+# Replace vpn.example.com with your VPN FQDN (e.g. vpn.dev.foobar.support).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openvpn-certs
+  labels:
+    app.kubernetes.io/name: openvpn-certs
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vpn-example-com-tls
+  namespace: openvpn-certs
+spec:
+  secretName: vpn-example-com-tls
+  duration: 2160h   # 90-day cert (Let's Encrypt default)
+  renewBefore: 720h # 30d before expiry → reissue starting at day 60
+  subject:
+    organizations:
+      - OpenVPN
+  commonName: vpn.example.com
+  dnsNames:
+    - vpn.example.com
+  issuerRef:
+    name: letsencrypt-route53
+    kind: ClusterIssuer
+    group: cert-manager.io

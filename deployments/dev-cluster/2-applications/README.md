@@ -39,6 +39,13 @@ Stage 2 requires these CRDs to exist:
 - Backend TLS enabled
 - Public access via external NLB
 
+### OpenVPN TLS cert (optional)
+- Dedicated cert-manager ClusterIssuer scoped to the VPN hosted zone (uses node IAM role)
+- Certificate for `vpn.<route53_domain>` (90d, renew from day 60)
+- CronJob every 30 min publishes cert to `openvpn/<env>` in Secrets Manager (uses node IAM role)
+- No static keys or credential Secrets — all access via `rke-nodes-role` scoped in `RKE-cluster/dev-cluster/ec2`
+- See `openvpn-cert.tf` and `../../modules/tls-issue/publisher/README.md`
+
 ## Configuration
 
 Edit `terraform.tfvars`:
@@ -47,6 +54,14 @@ Edit `terraform.tfvars`:
 route53_domain   = "dev.foobar.support"
 
 letsencrypt_environment = "staging"  # Use "staging" first, then "prod"
+
+# OpenVPN cert (when openvpn_cert_enabled = true)
+openvpn_cert_enabled            = true
+openvpn_cert_hosted_zone_id     = "Z06437531SIUA7T3WCKTM"   # Route53 zone for route53_domain
+openvpn_cert_letsencrypt_email  = "you@example.com"
+openvpn_cert_publisher_image    = "REDACTED_ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/openvpn-dev:latest"
+# Secret path (openvpn/dev) and IAM user are derived automatically.
+# Build the image first: make -C scripts
 ```
 
 ## Deployment
@@ -54,6 +69,85 @@ letsencrypt_environment = "staging"  # Use "staging" first, then "prod"
 ```bash
 terraform init
 terraform apply
+```
+
+## Deploying the OpenVPN TLS cert pipeline
+
+This is an optional sub-component. Follow these steps in order.
+
+### Prerequisites
+
+### Step 1 — Set variables in `terraform.tfvars`
+
+These values are already set for dev:
+
+```hcl
+route53_domain                 = "dev.foobar.support"
+letsencrypt_environment        = "prod"
+openvpn_cert_enabled           = true
+openvpn_cert_hosted_zone_id    = "Z06437531SIUA7T3WCKTM"
+openvpn_cert_letsencrypt_email = "mikey@mikey.com"
+openvpn_cert_publisher_image   = "REDACTED_ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/openvpn-dev:latest"
+```
+
+If the image has not been built yet, leave `openvpn_cert_publisher_image` empty — the CronJob is skipped until it is set.
+
+### Step 2 — Apply to create namespace, ClusterIssuer, and Certificate
+
+```bash
+terraform apply
+```
+
+Terraform creates: `openvpn-certs` namespace, dedicated ClusterIssuer (uses node role for Route53), Certificate, and RBAC. AWS credentials come from the node role — no Secrets are created here.
+
+The CronJob is skipped until `openvpn_cert_publisher_image` is set.
+
+Wait for the certificate to become `Ready` (DNS-01 validation takes 1–2 minutes):
+
+```bash
+kubectl get certificate -n openvpn-certs -w
+# openvpn-vpn-tls   True   ...
+```
+
+### Step 3 — Build and push the publisher image
+
+```bash
+# From this directory (deployments/dev-cluster/2-applications)
+make -C scripts
+```
+
+The script logs in to ECR, builds for `linux/amd64`, pushes, and prints the image URI.
+Edit `AWS_PROFILE` at the top of the script if you use a named AWS profile.
+
+### Step 4 — Enable the CronJob
+
+Add the printed URI to `terraform.tfvars`:
+
+```hcl
+openvpn_cert_publisher_image = "REDACTED_ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/openvpn-dev:latest"
+```
+
+Apply again:
+
+```bash
+terraform apply
+```
+
+### Step 5 — Verify
+
+```bash
+# Certificate is Ready
+kubectl get certificate -n openvpn-certs
+
+# CronJob exists
+kubectl get cronjob -n openvpn-certs
+
+# Trigger a manual run to confirm publishing works
+kubectl create job --from=cronjob/openvpn-publish-cert-to-secretsmanager manual-test -n openvpn-certs
+kubectl logs -n openvpn-certs -l job-name=manual-test --follow
+
+# Confirm the secret exists in Secrets Manager
+aws secretsmanager get-secret-value --secret-id openvpn/dev --query SecretString --output text | jq .fqdn
 ```
 
 ## Verification
@@ -106,6 +200,35 @@ kubectl describe certificate <cert-name> -n <namespace>
 
 # Check cert-manager logs
 kubectl logs -n cert-manager -l app=cert-manager
+```
+
+### OpenVPN cert not issuing (DNS-01 challenge)
+
+```bash
+# Inspect the Certificate and its CertificateRequest
+kubectl describe certificate openvpn-vpn-tls -n openvpn-certs
+
+# Check for a failing Challenge (DNS-01)
+kubectl get challenges -A
+kubectl describe challenge -n openvpn-certs <challenge-name>
+
+# Most common cause: node IAM role missing Route53 permissions.
+# Verify the ClusterIssuer is Ready:
+kubectl describe clusterissuer letsencrypt-vpn-prod
+```
+
+### Publisher CronJob not updating Secrets Manager
+
+```bash
+# Check recent job logs
+kubectl get jobs -n openvpn-certs
+kubectl logs -n openvpn-certs -l job-name=<job-name>
+
+# Common causes:
+#  - openvpn-publisher-aws-creds Secret missing (re-run terraform apply)
+#  - IAM policy not applied or wrong secret ARN
+#  - openvpn_cert_publisher_image not set (CronJob won't be created)
+kubectl get secret openvpn-publisher-aws-creds -n openvpn-certs
 ```
 
 ### Ingress not working

@@ -43,3 +43,8 @@ output "vpn_dns_settings" {
     ui_path       = "Configuration → VPN Settings"
   }
 }
+
+output "vpn_fqdn" {
+  description = "VPN hostname (vpn.<domain_name>). Set when route53_zone_id and domain_name are provided."
+  value       = var.route53_zone_id != "" && var.domain_name != "" ? "vpn.${var.domain_name}" : null
+}

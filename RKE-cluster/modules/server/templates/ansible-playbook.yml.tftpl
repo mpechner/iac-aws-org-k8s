@@ -160,6 +160,24 @@
         enabled: yes
         state: started
         daemon_reload: yes
+      register: rke2_server_start
+
+    - name: Show rke2-server journal when start fails (for debugging)
+      command: journalctl -u rke2-server -n 80 --no-pager
+      register: rke2_journal
+      when: rke2_server_start is failed
+      changed_when: false
+      failed_when: false
+
+    - name: Emit journal so it appears in Terraform output
+      debug:
+        msg: "{{ rke2_journal.stdout_lines | default([]) }}"
+      when: rke2_server_start is failed
+
+    - name: Fail with clear message after showing journal
+      fail:
+        msg: "rke2-server failed to start. Check journal output above or run on node: journalctl -u rke2-server -n 100 --no-pager"
+      when: rke2_server_start is failed
 
     - name: Wait for RKE2 kubeconfig to be generated
       wait_for:
@@ -167,6 +185,13 @@
         state: present
         delay: 5
         timeout: 600
+
+    - name: Wait for kubectl binary (RKE2 extracts it after start)
+      wait_for:
+        path: /var/lib/rancher/rke2/bin/kubectl
+        state: present
+        delay: 5
+        timeout: 300
 
     - name: Ensure .kube directory exists for user
       file:
@@ -184,9 +209,6 @@
         force: yes
       become: true
       become_user: "{{ ansible_user }}"
-
-    - name: End play (skip legacy RKE tasks)
-      meta: end_play
 
     - name: End play (skip legacy RKE tasks)
       meta: end_play

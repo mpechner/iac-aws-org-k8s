@@ -1,0 +1,33 @@
+# RBAC for the CronJob that publishes the TLS cert to AWS Secrets Manager.
+# Allows the publisher ServiceAccount to read only the TLS Secret in openvpn-certs.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openvpn-cert-publisher
+  namespace: openvpn-certs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openvpn-cert-publisher
+  namespace: openvpn-certs
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["vpn-example-com-tls"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openvpn-cert-publisher
+  namespace: openvpn-certs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openvpn-cert-publisher
+subjects:
+  - kind: ServiceAccount
+    name: openvpn-cert-publisher
+    namespace: openvpn-certs

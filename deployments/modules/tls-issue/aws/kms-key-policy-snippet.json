@@ -1,0 +1,27 @@
+[
+  {
+    "Sid": "Allow publisher to encrypt and decrypt",
+    "Effect": "Allow",
+    "Principal": {
+      "AWS": "arn:aws:iam::ACCOUNT_ID:user/PUBLISHER_IAM_USER"
+    },
+    "Action": [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:DescribeKey"
+    ],
+    "Resource": "*"
+  },
+  {
+    "Sid": "Allow EC2 OpenVPN instance to decrypt",
+    "Effect": "Allow",
+    "Principal": {
+      "AWS": "arn:aws:iam::ACCOUNT_ID:role/EC2_OPENVPN_INSTANCE_ROLE"
+    },
+    "Action": [
+      "kms:Decrypt",
+      "kms:DescribeKey"
+    ],
+    "Resource": "*"
+  }
+]

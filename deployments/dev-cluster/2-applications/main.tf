@@ -11,6 +11,7 @@
 #   - Traefik Dashboard: IngressRoute with authentication
 #   - Rancher: Kubernetes management UI
 #   - Nginx Sample: Demo application with TLS
+#   - OpenVPN cert: Certificate for vpn.<route53_domain> + CronJob to publish to Secrets Manager (see openvpn-cert.tf)
 
 # Create namespaces
 resource "kubernetes_namespace_v1" "nginx_sample" {
@@ -334,7 +335,7 @@ resource "kubernetes_manifest" "rancher_ingressroute" {
 
 # Applications module - Creates Ingress + cert-manager (same pattern as nginx; Rancher uses it for TLS + routing)
 module "applications" {
-  source = "./modules/ingress-applications"
+  source = "../../modules/ingress-applications"
 
   route53_domain          = var.route53_domain
   letsencrypt_environment = var.letsencrypt_environment
@@ -352,7 +353,7 @@ module "applications" {
 
 # Nginx sample site - Deploy after certificates are ready
 module "nginx_sample" {
-  source = "../modules/nginx-sample"
+  source = "../../modules/nginx-sample"
 
   namespace        = kubernetes_namespace_v1.nginx_sample.metadata[0].name
   create_namespace = false  # Namespace already created above
@@ -418,6 +419,7 @@ resource "null_resource" "pre_destroy_delete_traefik_nlbs" {
     kubernetes_manifest.nginx_ingressroute,
     kubernetes_manifest.rancher_cert,
     kubernetes_manifest.rancher_ingressroute,
+    module.openvpn_cert,
     module.applications,
     module.nginx_sample,
   ]
@@ -430,4 +432,16 @@ output "nginx_url" {
     (Public NLB; ensure DNS resolves to the NLB.)
   EOT
   description = "Nginx app URLs."
+}
+
+output "openvpn_cert" {
+  value = var.openvpn_cert_enabled ? {
+    vpn_fqdn             = module.openvpn_cert.vpn_fqdn
+    namespace            = module.openvpn_cert.namespace
+    tls_secret_name      = module.openvpn_cert.tls_secret_name
+    secrets_manager_name = module.openvpn_cert.secrets_manager_name
+    clusterissuer_name   = module.openvpn_cert.clusterissuer_name
+    cronjob_name         = module.openvpn_cert.cronjob_name
+  } : null
+  description = "OpenVPN cert-manager + publisher (when openvpn_cert_enabled is true)."
 }

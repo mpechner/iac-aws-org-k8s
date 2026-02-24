@@ -71,3 +71,15 @@ variable "vpc_state_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for the domain (e.g. dev.foobar.support). Leave empty to skip creating the VPN A record."
+  type        = string
+  default     = "Z06437531SIUA7T3WCKTM"
+}
+
+variable "domain_name" {
+  description = "Domain name for the VPN A record; hostname is always 'vpn'. FQDN will be vpn.<domain_name> (e.g. vpn.dev.foobar.support)"
+  type        = string
+  default     = "dev.foobar.support"
+}

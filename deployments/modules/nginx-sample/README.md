@@ -47,7 +47,7 @@ module "ingress" {
 
 # 2. Nginx module creates deployment/service
 module "nginx_sample" {
-  source = "./modules/nginx-sample"
+  source = "../../modules/nginx-sample"
 
   namespace   = "nginx-sample"
   environment = "dev"

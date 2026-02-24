@@ -20,7 +20,6 @@ deployments/dev-cluster/
 │   └── terraform.tfvars
 ├── 2-applications/      # Stage 2: Manifests + apps
 │   ├── main.tf
-│   ├── modules/ingress-applications/
 │   └── terraform.tfvars
 └── README.md           # Full documentation
 ```

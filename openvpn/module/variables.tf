@@ -53,3 +53,15 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for the domain. Leave empty to skip creating the VPN A record."
+  type        = string
+  default     = ""
+}
+
+variable "domain_name" {
+  description = "Domain name for the VPN A record; hostname is always 'vpn'. FQDN will be vpn.<domain_name> (e.g. dev.foobar.support). Required when route53_zone_id is set."
+  type        = string
+  default     = ""
+}
