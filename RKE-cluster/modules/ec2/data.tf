@@ -3,7 +3,7 @@ data "aws_subnet" "first" {
 }
 
 locals {
-  vpc_id_resolved  = var.vpc_id  != "" ? var.vpc_id  : data.aws_subnet.first.vpc_id
+  vpc_id_resolved = var.vpc_id != "" ? var.vpc_id : data.aws_subnet.first.vpc_id
 }
 
 data "aws_vpc" "selected" {

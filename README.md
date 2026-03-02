@@ -38,8 +38,7 @@ Suitable as a reference for multi-account AWS, Kubernetes operations, and ingres
 | `route53/dns-security/terraform.tf` | Route53 DNS security |
 | `s3backing/backend.tf` | S3 state backing |
 | `TF_org-user/providers.tf` | Terraform execution roles |
-| `vpc/providers.tf` | VPC (if using lowercase vpc) |
-| `VPC/providers.tf` | VPC (if using uppercase VPC) |
+| `VPC/providers.tf` | VPC infrastructure |
 
 **To find every file that needs to be modified:** search the repo for `mikey-com-terraformstate`. That includes the backend blocks above and variable defaults (e.g. openvpn and RKE remote-state bucket variables).
 
@@ -70,11 +69,19 @@ This creates:
 - `mikey-dev-rke-etcd-backups` - RKE etcd backups bucket
 
 ## Step 3: VPC Infrastructure
+
+The VPC is deployed from `VPC/` (not `VPC/dev/`). This uses an **S3 backend** so the VPC state is shared and can be referenced by other components (like OpenVPN).
+
 ```bash
 cd VPC
+terraform init
 terraform apply
 cd ..
 ```
+
+**Important:** The `VPC/` root only deploys the `dev` environment (defined in `VPC/main.tf`). If you need other environments (staging, prod), add more module blocks or run from those subdirectories separately.
+
+**Why not `VPC/dev/`?** That directory uses a local state file (no backend), which means only your machine can access it. OpenVPN reads the VPC ID from S3 remote state, so you must use `VPC/` for shared infrastructure.
 
 ## Step 4: VPN
 ```bash
@@ -106,12 +113,18 @@ Get the OpenVPN SSH key (saved to ~/.ssh/openvpn-ssh-keypair.pem). From repo roo
 # Or with a different secret name: .../get-openvpn-ssh-key.sh <secret-name>
 ```
 
-Set the default password (use the server IP from terraform output):
+**Important: First, update the OS and reboot (before setting password):**
 ```bash
 ssh -i ~/.ssh/openvpn-ssh-keypair.pem openvpnas@<SERVER_IP>
+
+sudo apt update
+sudo apt upgrade -y
+sudo reboot
 ```
 
+After reboot, SSH back in and set the default password:
 ```bash
+ssh -i ~/.ssh/openvpn-ssh-keypair.pem openvpnas@<SERVER_IP>
 cd /usr/local/openvpn_as/scripts/
 sudo ./sacli --user openvpn --new_pass APASSWORD SetLocalPassword
 ```
@@ -125,14 +138,17 @@ Download the users profile
 https://54.214.242.159:943/
 login and download the profile. User-locked or autologin. Again, since this is a lab and not production on server locked to a specific IP address, I am using the autologin profile.
 
-**Hostname:** In the Admin UI go to **Configuration → Network Settings** and set the hostname to the full domain name (e.g. `vpn.dev.foobar.support`). Save and Update Running Server if prompted.
+**Hostname (OpenVPN 3.0.1+):** In the Admin UI go to **VPN Server** (left sidebar) → **Network Settings** tab and set the **Hostname (or IP address)** to the full domain name (e.g. `vpn.dev.foobar.support`). Interface should be "All interfaces". Click **Save** at the top right.
 
-**DNS (required for internal resolution):** In the Admin UI go to **Configuration → VPN Settings**. In the DNS section:
-- Enable **Have clients use specific DNS servers**
-- **Primary DNS Server:** `10.8.0.2` (AWS VPC internal DNS for dev VPC)
-- **Secondary DNS Server:** `8.8.8.8`
-- **DNS Resolution Zones (optional):** Add the domain you use for internal services (e.g. `foobar.support`) so VPN clients resolve those hostnames via the VPC DNS (e.g. `nginx.dev.foobar.support`, `rancher.dev.foobar.support`).
-- Save and Update Running Server.
+**DNS (required for internal resolution):** In the Admin UI go to **Access Controls** (left sidebar) → **Internet Access and DNS** tab. Configure:
+- Select **Split-Tunnel**
+- **Push DNS:** On
+- **Select DNS Servers:** Custom
+- **DNS Server:** `10.8.0.2` (AWS VPC internal DNS for dev VPC)
+- Click **Add another DNS server** and add `8.8.8.8`
+- **Default Domain Suffix (optional):** `foobar.support`
+- **DNS Resolution Zones (optional):** `foobar.support`
+- Click **Save** at the top right.
 
 **Or use sacli (one script):** SSH to the OpenVPN server, then run from `/usr/local/openvpn_as/scripts/` (adjust `HOSTNAME` and `DNS_ZONE` for your environment):
 

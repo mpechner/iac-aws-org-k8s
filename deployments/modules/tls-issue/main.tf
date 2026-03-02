@@ -176,7 +176,7 @@ resource "kubernetes_manifest" "openvpn_cert_cronjob" {
       namespace = "openvpn-certs"
     }
     spec = {
-      schedule                   = "*/30 * * * *"
+      schedule                   = "0 */6 * * *"  # Every 6 hours
       concurrencyPolicy          = "Forbid"
       successfulJobsHistoryLimit = 3
       failedJobsHistoryLimit     = 3

@@ -17,7 +17,7 @@ data "aws_subnets" "private" {
     name   = "vpc-id"
     values = [data.aws_vpc.main.id]
   }
-  
+
   tags = {
     Type = "private"
   }
@@ -38,28 +38,28 @@ module "rke_agents" {
   key_name     = data.aws_key_pair.main.key_name
 
   # Optional variables with custom values
-  agent_count    = 3
-  instance_type  = "t3.medium"
-  
+  agent_count   = 3
+  instance_type = "t3.medium"
+
   ssh_cidr_blocks = [
     "10.0.0.0/8",
     "192.168.1.0/24"
   ]
-  
+
   cluster_cidr_blocks = [
     "10.0.0.0/8"
   ]
-  
+
   associate_public_ip = false
-  
+
   docker_version = "20.10"
   rke_version    = "v1.4.0"
-  
-  ansible_user = "ec2-user"
+
+  ansible_user                 = "ec2-user"
   ansible_ssh_private_key_file = "~/.ssh/my-key.pem"
-  
+
   aws_region = "us-west-2"
-  
+
   tags = {
     Environment = "production"
     Project     = "rke-cluster"

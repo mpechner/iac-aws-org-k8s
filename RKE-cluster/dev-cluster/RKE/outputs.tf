@@ -17,9 +17,12 @@ output "agent_ips" {
 output "kubeconfig_instructions" {
   description = "Instructions for setting up kubectl access"
   value       = <<-EOT
-    To configure kubectl access, run:
+    To configure kubectl access, run from repo root:
     
     ./scripts/setup-k9s.sh ${element(data.terraform_remote_state.ec2.outputs.server_instance_private_ips, 0)}
+    
+    Or from this directory:
+    ../../../scripts/setup-k9s.sh ${element(data.terraform_remote_state.ec2.outputs.server_instance_private_ips, 0)}
     
     Then verify:
     kubectl config use-context dev-rke2

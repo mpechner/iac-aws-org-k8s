@@ -20,9 +20,9 @@ resource "aws_iam_instance_profile" "rke_agent" {
 # Create Ansible inventory file from template
 resource "local_file" "ansible_inventory" {
   content = templatefile("${path.module}/templates/ansible-inventory.ini.tftpl", {
-    ansible_user = var.ansible_user
+    ansible_user                 = var.ansible_user
     ansible_ssh_private_key_file = var.ansible_ssh_private_key_file
-    agent_instance_ips = var.agent_instance_ips
+    agent_instance_ips           = var.agent_instance_ips
   })
   filename = "${path.module}/ansible/inventory.ini"
 }
@@ -30,13 +30,13 @@ resource "local_file" "ansible_inventory" {
 # Create Ansible playbook from template
 resource "local_file" "ansible_playbook" {
   content = templatefile("${path.module}/templates/ansible-playbook.yml.tftpl", {
-    cluster_name = var.cluster_name
-    aws_region = var.aws_region
-    ansible_user = var.ansible_user
+    cluster_name                 = var.cluster_name
+    aws_region                   = var.aws_region
+    ansible_user                 = var.ansible_user
     ansible_ssh_private_key_file = var.ansible_ssh_private_key_file
-    docker_version = var.docker_version
-    rke_version = var.rke_version
-    server_endpoint = var.server_endpoint
+    docker_version               = var.docker_version
+    rke_version                  = var.rke_version
+    server_endpoint              = var.server_endpoint
   })
   filename = "${path.module}/ansible/rke-agent-playbook.yml"
 }
@@ -44,10 +44,10 @@ resource "local_file" "ansible_playbook" {
 # Create Ansible template files
 resource "local_file" "rke_agent_config_template" {
   content = templatefile("${path.module}/templates/rke-agent-config.yml.tftpl", {
-    cluster_name = var.cluster_name
+    cluster_name   = var.cluster_name
     docker_version = var.docker_version
-    node_name = "agent-node"
-    node_ip = "{{ ansible_default_ipv4.address }}"
+    node_name      = "agent-node"
+    node_ip        = "{{ ansible_default_ipv4.address }}"
   })
   filename = "${path.module}/ansible/templates/rke-agent-config.yml.j2"
 }
@@ -62,9 +62,9 @@ resource "local_file" "rke_agent_service_template" {
 resource "local_file" "join_cluster_script_template" {
   content = templatefile("${path.module}/templates/join-cluster.sh.tftpl", {
     cluster_name = var.cluster_name
-    node_name = "agent-node"
-    node_ip = "{{ ansible_default_ipv4.address }}"
-    aws_region  = var.aws_region
+    node_name    = "agent-node"
+    node_ip      = "{{ ansible_default_ipv4.address }}"
+    aws_region   = var.aws_region
   })
   filename = "${path.module}/ansible/templates/join-cluster.sh.j2"
 }
@@ -80,7 +80,7 @@ resource "local_file" "join_cluster_script_template" {
 # Run Ansible playbook on the agent instances
 resource "null_resource" "ansible_provision" {
   count = length(var.agent_instance_ips)
-  
+
   depends_on = [
     local_file.ansible_inventory,
     local_file.ansible_playbook,
@@ -90,13 +90,13 @@ resource "null_resource" "ansible_provision" {
   ]
 
   triggers = {
-    cluster_name = var.cluster_name
-    docker_version = var.docker_version
-    rke_version = var.rke_version
-    instance_ip = var.agent_instance_ips[count.index]
+    cluster_name           = var.cluster_name
+    docker_version         = var.docker_version
+    rke_version            = var.rke_version
+    instance_ip            = var.agent_instance_ips[count.index]
     playbook_template_hash = filesha256("${path.module}/templates/ansible-playbook.yml.tftpl")
     # Store connection info for destroy provisioner
-    ssh_user = var.ansible_user
+    ssh_user     = var.ansible_user
     ssh_key_file = var.ansible_ssh_private_key_file
   }
 
@@ -135,8 +135,8 @@ resource "null_resource" "ansible_provision" {
 
   # Cleanup: Uninstall RKE2 when destroying (sudo -n = non-interactive; on_failure = continue so destroy does not hang on password prompt)
   provisioner "remote-exec" {
-    when        = destroy
-    on_failure  = continue
+    when       = destroy
+    on_failure = continue
     inline = [
       "echo 'Uninstalling RKE2 agent...'",
       "sudo -n systemctl stop rke2-agent 2>/dev/null || true",

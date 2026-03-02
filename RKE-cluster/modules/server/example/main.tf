@@ -17,7 +17,7 @@ data "aws_subnets" "private" {
     name   = "vpc-id"
     values = [data.aws_vpc.main.id]
   }
-  
+
   tags = {
     Type = "private"
   }
@@ -39,35 +39,35 @@ module "rke_servers" {
 
   # Optional variables with custom values
   server_count = 3
-  
+
   ssh_cidr_blocks = [
     "10.0.0.0/8",
     "192.168.1.0/24"
   ]
-  
+
   cluster_cidr_blocks = [
     "10.0.0.0/8"
   ]
-  
-  docker_version = "20.10"
-  rke_version    = "v1.4.0"
+
+  docker_version     = "20.10"
+  rke_version        = "v1.4.0"
   kubernetes_version = "v1.24.10-rke2r1"
-  
-  etcd_backup_enabled = true
+
+  etcd_backup_enabled   = true
   etcd_backup_retention = 7
-  
-  network_plugin = "flannel"
+
+  network_plugin           = "flannel"
   service_cluster_ip_range = "10.43.0.0/16"
-  cluster_dns_service = "10.43.0.10"
-  
+  cluster_dns_service      = "10.43.0.10"
+
   pod_security_policy = false
-  audit_log_enabled = true
-  
-  ansible_user = "ec2-user"
+  audit_log_enabled   = true
+
+  ansible_user                 = "ec2-user"
   ansible_ssh_private_key_file = "~/.ssh/my-key.pem"
-  
+
   aws_region = "us-west-2"
-  
+
   tags = {
     Environment = "production"
     Project     = "rke-cluster"
