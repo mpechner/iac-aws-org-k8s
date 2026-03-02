@@ -61,7 +61,18 @@ terraform plan    # optional: preview
 terraform apply
 ```
 
-### 4. Access OpenVPN Admin Interface
+### 4. Update OS and Access OpenVPN Admin Interface
+
+**Important: First, update the OS and reboot before configuring:**
+```bash
+ssh -i ~/.ssh/openvpn-ssh-keypair.pem openvpnas@<SERVER_IP>
+
+sudo apt update
+sudo apt upgrade -y
+sudo reboot
+```
+
+After reboot, access the Admin Interface:
 Visit: `https://YOUR_SERVER_IP:943/admin` (or `https://vpn.dev.foobar.support:943/admin` if `route53_zone_id` is set)
 
 **Default credentials:**
@@ -72,19 +83,22 @@ Visit: `https://YOUR_SERVER_IP:943/admin` (or `https://vpn.dev.foobar.support:94
 
 Set the hostname to the full domain name, then configure DNS so clients can resolve internal AWS services and private hosted zones. Do this right after deploying the VPN (step 2 in the deployment order).
 
-**Steps:**
+**Steps (OpenVPN 3.0.1+ new web interface):**
 1. Open the Admin UI: `https://YOUR_SERVER_IP:943/admin`
-2. Go to **Configuration** → **Network Settings** and set the **hostname** to the full domain name (e.g. `vpn.dev.foobar.support`). Save and Update Running Server if prompted.
-3. Go to **Configuration** → **VPN Settings** (DNS is under this page).
-4. In the DNS section, set:
+2. Go to **VPN Server** (left sidebar) → **Network Settings** tab and set the **Hostname (or IP address)** to the full domain name (e.g. `vpn.dev.foobar.support`). Interface should be "All interfaces". Click **Save** at the top right.
+3. Go to **Access Controls** (left sidebar) → **Internet Access and DNS** tab.
+4. Configure DNS settings:
 
 **DNS Settings:**
-- ☑ **Have clients use specific DNS servers**
-- **Primary DNS Server**: `10.8.0.2` (AWS VPC internal DNS resolver for dev VPC `10.8.0.0/16`)
-- **Secondary DNS Server**: `8.8.8.8` (Google DNS for internet resolution)
+- Select **Split-Tunnel**
+- **Push DNS:** On
+- **Select DNS Servers:** Custom
+- **DNS Server**: `10.8.0.2` (AWS VPC internal DNS for dev VPC)
+- Click **Add another DNS server** and add `8.8.8.8`
 
 **DNS Resolution Zones (Optional):**
-- **DNS zones**: `foobar.support` (replace with your internal domain)
+- **DNS Resolution Zones**: `foobar.support`
+- **Default Domain Suffix (optional)**: `foobar.support`
   
   This ensures VPN clients can resolve:
   - `nginx.dev.foobar.support` → internal NLB IPs
@@ -92,7 +106,7 @@ Set the hostname to the full domain name, then configure DNS so clients can reso
   - `rancher.dev.foobar.support` → Kubernetes management UI
   - Any other services using your private Route53 hosted zone
 
-**Important:** Make sure "Do not alter clients' DNS server settings" is **UNCHECKED**.
+**Important:** Make sure "Do not alter clients' DNS server settings" is **DISABLED/OFF**.
 
 **VPC-Specific DNS Resolvers:**
 Different VPCs use different DNS resolver IPs. The DNS server is always at `VPC_CIDR + 2`:
@@ -102,7 +116,7 @@ Different VPCs use different DNS resolver IPs. The DNS server is always at `VPC_
 - **Test VPC** (`10.12.0.0/16`): DNS at `10.12.0.2`
 
 **After Configuration:**
-1. Save and Update Running Server (on the VPN Settings page)
+1. Changes are auto-saved when you click **Save**. The VPN service will update.
 2. Reconnect your VPN client
 3. Test DNS resolution:
    ```bash
@@ -115,14 +129,14 @@ Different VPCs use different DNS resolver IPs. The DNS server is always at `VPC_
 ```bash
 cd /usr/local/openvpn_as/scripts
 
-# 1. Hostname (Configuration → Network Settings) — use your VPN FQDN
+# 1. Hostname (VPN Server → Network Settings) — use your VPN FQDN
 HOSTNAME="vpn.dev.foobar.support"
 ./sacli --key "host.name" --value "$HOSTNAME" ConfigPut
 
-# 2. Enable "Have clients use specific DNS servers" (Configuration → VPN Settings → DNS)
+# 2. Enable DNS and set servers (Access Controls → Internet Access and DNS)
 ./sacli --key "vpn.client.routing.reroute_dns" --value "true" ConfigPut
 
-# 3. Primary DNS 10.8.0.2 (AWS VPC), Secondary 8.8.8.8 (Configuration → VPN Settings → DNS)
+# 3. Primary DNS 10.8.0.2 (AWS VPC), Secondary 8.8.8.8
 # 4. Optional: DNS Resolution Zones — push domain so clients resolve e.g. nginx.dev.foobar.support via VPC DNS
 DNS_ZONE="foobar.support"   # optional; set to "" to skip
 echo 'push "dhcp-option DNS 10.8.0.2"'  > /tmp/dns.txt
@@ -134,7 +148,7 @@ echo 'push "dhcp-option DNS 8.8.8.8"'   >> /tmp/dns.txt
 ./sacli start
 ```
 
-**Note:** `vpn.server.config_text` replaces any existing custom server directives. If you have other directives (e.g. **Configuration → Advanced VPN → Additional OpenVPN Config**), run `./sacli ConfigQuery`, add the three `push` lines above to the exported config, then use `ConfigReplace` with that file instead of `ConfigPut`. For other VPCs use that VPC’s DNS resolver (e.g. `10.4.0.2` for 10.4.0.0/16).
+**Note:** `vpn.server.config_text` replaces any existing custom server directives. If you have other directives (e.g. **Advanced → Additional OpenVPN Config**), run `./sacli ConfigQuery`, add the three `push` lines above to the exported config, then use `ConfigReplace` with that file instead of `ConfigPut`. For other VPCs use that VPC’s DNS resolver (e.g. `10.4.0.2` for 10.4.0.0/16).
 
 ### 6. Download Client Configurations
 Visit: `https://YOUR_SERVER_IP:944/`
@@ -281,11 +295,12 @@ If you can't access internal services (e.g., `nginx.dev.foobar.support`):
    - Disconnect and reconnect your VPN client
    - DNS settings are only applied on connection
 
-4. **Check OpenVPN Admin Settings:**
-   - Verify "Have clients use specific DNS servers" is checked
-   - Verify Primary DNS Server is set to `10.8.0.2`
-   - Verify "Do not alter clients' DNS server settings" is **UNCHECKED**
-   - Click "Save Settings" and "Update Running Server"
+4. **Check OpenVPN Admin Settings (Access Controls → Internet Access and DNS in 3.0.1+):**
+   - Verify **Split-Tunnel** is selected
+   - Verify **Push DNS** is On
+   - Verify **Select DNS Servers** is Custom with `10.8.0.2` and `8.8.8.8`
+   - Verify **DNS Resolution Zones** includes your internal domain
+   - Click **Save** at the top right
 
 5. **Manual DNS Test (from VPN):**
    ```bash

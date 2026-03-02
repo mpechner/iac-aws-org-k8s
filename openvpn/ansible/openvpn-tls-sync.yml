@@ -1,0 +1,242 @@
+---
+- name: Configure OpenVPN TLS Certificate Sync
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    # Use /tmp for Ansible temp files (openvpnas user has limited home permissions)
+    ansible_remote_tmp: /tmp/.ansible-${USER}
+    ansible_local_tmp: /tmp/.ansible-${USER}
+    sync_script_path: "/usr/local/bin/sync-vpn-tls.sh"
+    # These are passed from the setup script via -e arguments
+    # vpn_fqdn: "vpn.dev.foobar.support"
+    # tls_secret_name: "openvpn/dev"
+    # tls_secret_region: "us-west-2"
+
+  tasks:
+    - name: Install unzip (required for AWS CLI)
+      apt:
+        name: unzip
+        state: present
+        update_cache: yes
+
+    - name: Check if AWS CLI v2 is installed
+      shell: command -v aws && aws --version 2>&1 || echo "NOT_INSTALLED"
+      register: aws_cli_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Install AWS CLI v2
+      shell: |
+        cd /tmp
+        curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip -q -o awscliv2.zip
+        ./aws/install --update
+        rm -rf awscliv2.zip aws
+      when: aws_cli_check.stdout is search('NOT_INSTALLED') or not aws_cli_check.stdout is search('aws-cli/2')
+
+    - name: Create TLS sync script
+      copy:
+        dest: "{{ sync_script_path }}"
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          # Sync TLS certificate from AWS Secrets Manager to OpenVPN
+          # Runs every 30 minutes via cron
+          
+          set -e
+          
+          SECRET_NAME="{{ tls_secret_name }}"
+          SECRET_REGION="{{ tls_secret_region }}"
+          
+          # Use public endpoint (bypass VPC endpoint which times out from public subnet)
+          AWS_CLI="aws --endpoint-url https://secretsmanager.${SECRET_REGION}.amazonaws.com"
+          LOG_FILE="/var/log/openvpn-tls-sync.log"
+          CERT_DIR="/usr/local/openvpn_as/etc/web-ssl"
+          STAMP_FILE="/var/run/openvpn-tls-stamp"
+          
+          # OpenVPN Access Server cert paths
+          SERVER_CERT="$CERT_DIR/server.crt"
+          SERVER_KEY="$CERT_DIR/server.key"
+          
+          log() {
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+          }
+          
+          # Ensure cert directory exists
+          mkdir -p "$CERT_DIR"
+          
+          # Check if secret exists in Secrets Manager
+          log "Checking secret: $SECRET_NAME in region $SECRET_REGION"
+          if ! $AWS_CLI secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$SECRET_REGION" 2>/dev/null; then
+              log "⚠️ Secret $SECRET_NAME does not exist yet. Will retry on next run."
+              exit 0
+          fi
+          
+          # Get secret value
+          log "Fetching secret value..."
+          SECRET_VALUE=$($AWS_CLI secretsmanager get-secret-value --secret-id "$SECRET_NAME" --region "$SECRET_REGION" --query 'SecretString' --output text 2>/dev/null)
+          
+          if [ -z "$SECRET_VALUE" ]; then
+              log "⚠️ Secret value is empty. Will retry on next run."
+              exit 0
+          fi
+          
+          # Extract certificate and key
+          echo "$SECRET_VALUE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if 'fullchain_pem' in data:
+              print(data.get('fullchain_pem', ''))
+          elif 'certificate' in data:
+              print(data.get('certificate', ''))
+          elif 'tls.crt' in data:
+              print(data.get('tls.crt', ''))
+          else:
+              print('')
+          " > /tmp/new_cert.crt
+          
+          echo "$SECRET_VALUE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if 'privkey_pem' in data:
+              print(data.get('privkey_pem', ''))
+          elif 'private_key' in data:
+              print(data.get('private_key', ''))
+          elif 'tls.key' in data:
+              print(data.get('tls.key', ''))
+          else:
+              print('')
+          " > /tmp/new_key.key
+          
+          # Validate extracted files
+          if [ ! -s /tmp/new_cert.crt ] || [ ! -s /tmp/new_key.key ]; then
+              log "⚠️ Could not extract certificate or key from secret"
+              rm -f /tmp/new_cert.crt /tmp/new_key.key
+              exit 0
+          fi
+          
+          # Decode if base64 encoded
+          if head -1 /tmp/new_cert.crt | grep -q '^[A-Za-z0-9+/=]\+$'; then
+              base64 -d /tmp/new_cert.crt > /tmp/decoded_cert.crt 2>/dev/null && mv /tmp/decoded_cert.crt /tmp/new_cert.crt || true
+              base64 -d /tmp/new_key.key > /tmp/decoded_key.key 2>/dev/null && mv /tmp/decoded_key.key /tmp/new_key.key || true
+          fi
+          
+          # Verify certificate matches expected FQDN ({{ vpn_fqdn }})
+          CERT_CN=$(openssl x509 -in /tmp/new_cert.crt -noout -subject 2>/dev/null | grep -o 'CN = [^,]*' | sed 's/CN = //')
+          if [ -n "$CERT_CN" ] && [ "$CERT_CN" != "{{ vpn_fqdn }}" ]; then
+              log "⚠️ Certificate CN ($CERT_CN) does not match expected FQDN ({{ vpn_fqdn }})"
+              log "   Proceeding anyway, but verify this is correct."
+          fi
+          
+          # Compute fingerprint of new certificate
+          NEW_FINGERPRINT=$(openssl x509 -in /tmp/new_cert.crt -noout -pubkey 2>/dev/null | openssl sha256 2>/dev/null | awk '{print $2}')
+          if [ -z "$NEW_FINGERPRINT" ]; then
+              NEW_FINGERPRINT=$(cat /tmp/new_cert.crt | sha256sum | awk '{print $1}')
+          fi
+          
+          # Get current certificate fingerprint
+          CURRENT_FINGERPRINT=""
+          if [ -f "$SERVER_CERT" ]; then
+              CURRENT_FINGERPRINT=$(openssl x509 -in "$SERVER_CERT" -noout -pubkey 2>/dev/null | openssl sha256 2>/dev/null | awk '{print $2}')
+              if [ -z "$CURRENT_FINGERPRINT" ]; then
+                  CURRENT_FINGERPRINT=$(cat "$SERVER_CERT" | sha256sum | awk '{print $1}')
+              fi
+          fi
+          
+          # Compare fingerprints
+          if [ "$NEW_FINGERPRINT" = "$CURRENT_FINGERPRINT" ]; then
+              log "✅ Certificate unchanged (fingerprint: $NEW_FINGERPRINT). No action needed."
+              rm -f /tmp/new_cert.crt /tmp/new_key.key
+              exit 0
+          fi
+          
+          log "🔄 Certificate changed! Installing new certificate..."
+          log "  Old fingerprint: $CURRENT_FINGERPRINT"
+          log "  New fingerprint: $NEW_FINGERPRINT"
+          
+          # Backup current certs
+          if [ -f "$SERVER_CERT" ]; then
+              cp "$SERVER_CERT" "$SERVER_CERT.backup.$(date +%s)"
+          fi
+          if [ -f "$SERVER_KEY" ]; then
+              cp "$SERVER_KEY" "$SERVER_KEY.backup.$(date +%s)"
+          fi
+          
+          # Install new certificates using sacli (proper OpenVPN AS method)
+          log "🔧 Configuring OpenVPN Access Server with new certificate..."
+          
+          # Use sacli ConfigPut to import the certificate and key
+          # OpenVPN AS 3.0+ uses cs.cert, cs.priv_key, and cs.ca_bundle config keys
+          cd /usr/local/openvpn_as/scripts
+          
+          # Extract the intermediate chain from fullchain (all certs except the first/leaf)
+          # Count certs and print from 2nd one onwards
+          awk 'BEGIN{n=0; buf=""; out=""} 
+               /-----BEGIN CERTIFICATE-----/{n++; buf=$0"\n"; next} 
+               /-----END CERTIFICATE-----/{buf=buf$0"\n"; if(n>1) out=out buf; buf=""; next}
+               {buf=buf$0"\n"} 
+               END{if(n>1 && buf!="") out=out buf; print out}' /tmp/new_cert.crt > /tmp/chain.pem 2>/dev/null || echo "" > /tmp/chain.pem
+          
+          # Import the certificate, private key, and CA bundle
+          ./sacli --key "cs.cert" --value_file /tmp/new_cert.crt ConfigPut 2>&1 | tee -a "$LOG_FILE"
+          ./sacli --key "cs.priv_key" --value_file /tmp/new_key.key ConfigPut 2>&1 | tee -a "$LOG_FILE"
+          
+          # Only import chain if it exists (has content)
+          if [ -s /tmp/chain.pem ]; then
+              ./sacli --key "cs.ca_bundle" --value_file /tmp/chain.pem ConfigPut 2>&1 | tee -a "$LOG_FILE"
+          fi
+          rm -f /tmp/chain.pem
+          
+          # Restart the web server component only (not the entire service)
+          log "🔄 Restarting OpenVPN Access Server web services..."
+          ./sacli start
+          
+          sleep 5
+          
+          # Verify the web service is running
+          if ./sacli status | grep -q '"web": "on"'; then
+              log "✅ OpenVPN Access Server web service is running with new certificate"
+          else
+              log "⚠️ Web service may not have started properly. Check status with: ./sacli status"
+          fi
+          
+          # Save fingerprint for next comparison
+          echo "$NEW_FINGERPRINT" > "$STAMP_FILE"
+          
+          log "✅ Certificate sync complete"
+
+    - name: Create cron job for TLS sync (every 30 minutes between midnight and 3am)
+      cron:
+        name: "OpenVPN TLS Certificate Sync"
+        minute: "*/30"
+        hour: "0-2"
+        job: "{{ sync_script_path }} >> /var/log/openvpn-tls-sync.log 2>&1"
+        user: root
+
+    - name: Create initial stamp file
+      file:
+        path: /var/run/openvpn-tls-stamp
+        state: touch
+        mode: '0644'
+
+    - name: Note about initial sync
+      debug:
+        msg:
+          - "TLS sync script installed at {{ sync_script_path }}"
+          - "Cron job will run every 30 minutes to sync certificate"
+          - "First sync will happen automatically via cron"
+          - "Or run manually: sudo {{ sync_script_path }}"
+
+    - name: Verify script exists and is executable
+      stat:
+        path: "{{ sync_script_path }}"
+      register: script_stat
+
+    - name: Display verification results
+      debug:
+        msg:
+          - "Script exists: {{ script_stat.stat.exists }}"
+          - "Script executable: {{ script_stat.stat.executable }}"
+          - "Cron job configured for secret: {{ tls_secret_name }}"
+          - "To check logs: tail -f /var/log/openvpn-tls-sync.log"

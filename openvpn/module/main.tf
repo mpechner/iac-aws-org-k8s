@@ -9,6 +9,74 @@ locals {
   })
 }
 
+# IAM Role for OpenVPN Server - allows reading TLS certificate from Secrets Manager
+resource "aws_iam_role" "openvpn" {
+  name = "${var.environment}-openvpn-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = merge(local.common_tags, { Name = "${var.environment}-openvpn-role" })
+}
+
+resource "aws_iam_instance_profile" "openvpn" {
+  name = "${var.environment}-openvpn-profile"
+  role = aws_iam_role.openvpn.name
+
+  tags = merge(local.common_tags, { Name = "${var.environment}-openvpn-profile" })
+}
+
+resource "aws_iam_role_policy" "openvpn_secrets" {
+  name = "${var.environment}-openvpn-secrets-policy"
+  role = aws_iam_role.openvpn.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:*:*:secret:${var.tls_secret_name}-*",
+          "arn:aws:secretsmanager:*:*:secret:openvpn*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:ListSecrets"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = "arn:aws:kms:*:*:key/*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.*.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # Security Group for OpenVPN
 resource "aws_security_group" "openvpn" {
   name        = "${var.environment}-openvpn-sg"
@@ -70,11 +138,20 @@ resource "aws_instance" "openvpn" {
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.openvpn.id]
   key_name               = var.key_name
+  iam_instance_profile   = aws_iam_instance_profile.openvpn.name
 
   root_block_device {
     volume_size = var.root_volume_size
     volume_type = "gp3"
     encrypted   = true
+  }
+
+  # Require IMDSv2 for security (disables IMDSv1)
+  # hop_limit=2 allows pods to use IMDSv2 via instance profile
+  metadata_options {
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+    http_endpoint               = "enabled"
   }
 
   user_data = templatefile("${path.module}/userdata.sh", {

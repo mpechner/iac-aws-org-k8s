@@ -44,3 +44,13 @@ output "vpn_fqdn" {
   description = "VPN hostname (vpn.<domain_name>). Set when route53_zone_id is provided."
   value       = module.openvpn.vpn_fqdn
 }
+
+output "tls_sync_enabled" {
+  description = "Whether TLS certificate sync is enabled via Ansible"
+  value       = module.openvpn.tls_sync_enabled
+}
+
+output "tls_sync_info" {
+  description = "Information about the TLS sync setup"
+  value       = module.openvpn.tls_sync_info
+}

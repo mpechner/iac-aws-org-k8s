@@ -9,7 +9,7 @@ variable "environment" {
 variable "ami_id" {
   description = "AMI ID for OpenVPN Access Server"
   type        = string
-  default     = "ami-0e64010cd8a5abec7"
+  default     = "ami-02c49cd4717375e63"
 }
 
 variable "account_id" {
@@ -82,4 +82,22 @@ variable "domain_name" {
   description = "Domain name for the VPN A record; hostname is always 'vpn'. FQDN will be vpn.<domain_name> (e.g. vpn.dev.foobar.support)"
   type        = string
   default     = "dev.foobar.support"
+}
+
+variable "enable_tls_sync" {
+  description = "If true, run Ansible playbook to install TLS certificate sync cronjob on the OpenVPN server after deployment"
+  type        = bool
+  default     = true
+}
+
+variable "tls_secret_name" {
+  description = "AWS Secrets Manager secret name for TLS certificate (e.g., openvpn/dev)"
+  type        = string
+  default     = "openvpn/dev"
+}
+
+variable "vpc_endpoint_sg_id" {
+  description = "Security group ID of VPC interface endpoints (for Secrets Manager, STS, etc.). If set, allows OpenVPN to reach endpoints on port 443."
+  type        = string
+  default     = ""
 }

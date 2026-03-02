@@ -65,3 +65,21 @@ variable "domain_name" {
   type        = string
   default     = ""
 }
+
+variable "enable_tls_sync" {
+  description = "If true, run Ansible playbook to install TLS certificate sync cronjob on the OpenVPN server"
+  type        = bool
+  default     = true
+}
+
+variable "tls_secret_name" {
+  description = "AWS Secrets Manager secret name for TLS certificate (e.g., openvpn/dev)"
+  type        = string
+  default     = "openvpn/dev"
+}
+
+variable "tls_sync_ansible_script" {
+  description = "Path to the Ansible setup script for TLS sync"
+  type        = string
+  default     = ""
+}

@@ -48,3 +48,18 @@ output "vpn_fqdn" {
   description = "VPN hostname (vpn.<domain_name>). Set when route53_zone_id and domain_name are provided."
   value       = var.route53_zone_id != "" && var.domain_name != "" ? "vpn.${var.domain_name}" : null
 }
+
+output "tls_sync_enabled" {
+  description = "Whether TLS certificate sync is enabled via Ansible"
+  value       = var.enable_tls_sync
+}
+
+output "tls_sync_info" {
+  description = "Information about the TLS sync setup"
+  value = var.enable_tls_sync ? {
+    secret_name   = var.tls_secret_name
+    sync_script   = "/usr/local/bin/sync-vpn-tls.sh"
+    log_file      = "/var/log/openvpn-tls-sync.log"
+    check_command = "ssh -i ~/.ssh/${var.key_name}.pem ${var.ssh_username}@${aws_eip.openvpn.public_ip} 'sudo crontab -l | grep openvpn'"
+  } : null
+}
