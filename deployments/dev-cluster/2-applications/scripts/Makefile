@@ -1,4 +1,5 @@
-ECR_ACCOUNT   ?= $(shell aws sts get-caller-identity --query Account --output text)
+AWS_ACCOUNT_ID ?= $(shell aws sts get-caller-identity --query Account --output text)
+ECR_ACCOUNT    := $(AWS_ACCOUNT_ID)
 ECR_REGION    := us-west-2
 ECR_REPO      := openvpn-dev
 IMAGE_TAG     := latest

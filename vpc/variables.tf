@@ -2,5 +2,4 @@
 variable "account_id" {
   description = "AWS account ID where VPC is deployed (terraform-execute role must exist)"
   type        = string
-  default     = "REDACTED_ACCOUNT_ID"
 }

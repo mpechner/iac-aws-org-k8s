@@ -425,6 +425,84 @@ resource "null_resource" "pre_destroy_delete_traefik_nlbs" {
   ]
 }
 
+# Wait for certificates to be Ready and verify HTTPS endpoints are reachable.
+# Runs after all IngressRoutes and certs are created; prints a clear pass/fail per URL.
+resource "null_resource" "verify_https_endpoints" {
+  triggers = {
+    nginx_cert   = kubernetes_manifest.nginx_cert.manifest.metadata.name
+    rancher_cert = kubernetes_manifest.rancher_cert.manifest.metadata.name
+    traefik_cert = kubernetes_manifest.traefik_dashboard_cert.manifest.metadata.name
+    domain       = var.route53_domain
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      KUBECONFIG="$(eval echo ${var.kubeconfig_path})"
+      DOMAIN="${var.route53_domain}"
+      TIMEOUT=300
+      INTERVAL=15
+
+      wait_for_cert() {
+        local NAME=$1
+        local NS=$2
+        local ELAPSED=0
+        echo "⏳ Waiting for certificate $NAME ($NS) to be Ready..."
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          STATUS=$(kubectl --kubeconfig="$KUBECONFIG" get certificate "$NAME" -n "$NS" \
+            -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+          if [ "$STATUS" = "True" ]; then
+            echo "✅ Certificate $NAME is Ready"
+            return 0
+          fi
+          REASON=$(kubectl --kubeconfig="$KUBECONFIG" get certificate "$NAME" -n "$NS" \
+            -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "pending")
+          echo "   [$ELAPSED/$TIMEOUT s] $NAME: $REASON"
+          sleep $INTERVAL
+          ELAPSED=$((ELAPSED + INTERVAL))
+        done
+        echo "❌ Timed out waiting for certificate $NAME"
+        return 1
+      }
+
+      check_url() {
+        local URL=$1
+        local ELAPSED=0
+        echo "⏳ Waiting for $URL to return HTTP 200..."
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          CODE=$(curl -sk -o /dev/null -w "%%{http_code}" --max-time 10 "$URL" 2>/dev/null || echo "000")
+          if [ "$CODE" = "200" ] || [ "$CODE" = "301" ] || [ "$CODE" = "302" ]; then
+            echo "✅ $URL returned HTTP $CODE"
+            return 0
+          fi
+          echo "   [$ELAPSED/$TIMEOUT s] $URL returned HTTP $CODE"
+          sleep $INTERVAL
+          ELAPSED=$((ELAPSED + INTERVAL))
+        done
+        echo "❌ Timed out waiting for $URL (last code: $CODE)"
+        return 1
+      }
+
+      wait_for_cert "nginx-tls"              "traefik"
+      wait_for_cert "rancher-tls"            "traefik"
+      wait_for_cert "traefik-dashboard-tls"  "traefik"
+
+      check_url "https://nginx.$DOMAIN"
+      check_url "https://rancher.$DOMAIN"
+      check_url "https://traefik.$DOMAIN/dashboard/"
+
+      echo ""
+      echo "✅ All endpoints verified"
+    EOT
+  }
+
+  depends_on = [
+    kubernetes_manifest.nginx_ingressroute,
+    kubernetes_manifest.rancher_ingressroute,
+    kubernetes_manifest.traefik_dashboard_ingressroute,
+  ]
+}
+
 output "nginx_url" {
   value = <<-EOT
     Try HTTP first (works without TLS):  http://nginx.${var.route53_domain}

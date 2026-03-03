@@ -131,7 +131,13 @@ vpn_connection_info = {
 - This subnet is added to the RKE security groups to allow kubectl/k9s access from VPN-connected clients
 - If you change the VPN IP Network in the OpenVPN admin panel, you must also update the `cluster_cidr_blocks` in `RKE-cluster/dev-cluster/RKE/main.tf`
 
-Get the OpenVPN SSH key (saved to ~/.ssh/openvpn-ssh-keypair.pem). The `terraform apply` output includes the exact command — copy it directly from the `get_ssh_key_command` output. Or run manually:
+Get the OpenVPN SSH key (saved to `~/.ssh/openvpn-ssh-keypair.pem`). The `terraform apply` output includes the exact command — copy it directly:
+
+```
+get_ssh_key_command = "AWS_ACCOUNT_ID=<your-account-id> ./../../scripts/get-openvpn-ssh-key.sh"
+```
+
+Copy and run that line verbatim. Or run manually:
 ```bash
 AWS_ACCOUNT_ID=<your-account-id> ./scripts/get-openvpn-ssh-key.sh
 ```
@@ -217,7 +223,20 @@ terraform apply
 
 **IMPORTANT - SSH Key Setup Required:**
 
-Before proceeding to Step 7, you MUST copy the RKE SSH private key. The `terraform apply` output includes the exact command — copy it directly from the `next_steps` output. Or run manually:
+Before proceeding to Step 7, you MUST copy the RKE SSH private key. The `terraform apply` output includes the exact command with your account ID already filled in — copy it directly from the `next_steps` output:
+
+```
+next_steps = <<EOT
+  ✓ All EC2 instances are ready!
+
+  Next steps:
+  1. Get the RKE SSH key (saved to ~/.ssh/rke-key):
+     AWS_ACCOUNT_ID=123456789012 ../../../scripts/get-rke-ssh-key.sh
+  ...
+EOT
+```
+
+Copy and run that line verbatim. Or run manually:
 ```bash
 AWS_ACCOUNT_ID=<your-account-id> ./scripts/get-rke-ssh-key.sh
 ```

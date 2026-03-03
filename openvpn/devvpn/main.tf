@@ -120,6 +120,8 @@ resource "null_resource" "openvpn_tls_sync" {
       TLS_SECRET_NAME = var.tls_secret_name
       SSH_KEY         = local_file.openvpn_ssh_private_key.filename
       AUTO_APPROVE    = "1"
+      SSH_ATTEMPTS    = "6"
+      SSH_WAIT        = "20"
     }
 
     working_dir = path.module

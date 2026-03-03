@@ -104,7 +104,7 @@
           #!/bin/bash
           # Refresh ECR credentials for RKE2/containerd
           REGION="{{ region }}"
-          ACCOUNT="{{ aws_account_id }}"
+          ACCOUNT="${ aws_account_id }"
           REGISTRY="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
           
           # Get ECR login token

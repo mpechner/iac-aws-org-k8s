@@ -1,3 +1,4 @@
 module dev-vpc {
-    source =  "./dev"
+    source     = "./dev"
+    account_id = var.account_id
 }

@@ -107,15 +107,38 @@ fi
 # Check 6: SSH connectivity
 echo ""
 echo "🔍 Testing SSH connectivity..."
-if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$SSH_KEY" "openvpnas@$VPN_FQDN" "echo 'SSH OK'" &>/dev/null; then
-    echo -e "${GREEN}✅ SSH connection successful${NC}"
-else
-    echo -e "${RED}❌ Cannot SSH to OpenVPN server${NC}"
-    echo "   Check:"
-    echo "   - Security group allows SSH from your IP"
-    echo "   - Key permissions: chmod 600 $SSH_KEY"
-    echo "   - Instance is running and has public IP"
-    exit 1
+SSH_OK=false
+SSH_ATTEMPTS="${SSH_ATTEMPTS:-3}"
+SSH_WAIT="${SSH_WAIT:-20}"
+
+for i in $(seq 1 $SSH_ATTEMPTS); do
+    if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$SSH_KEY" "openvpnas@$VPN_FQDN" "echo 'SSH OK'" &>/dev/null; then
+        echo -e "${GREEN}✅ SSH connection successful${NC}"
+        SSH_OK=true
+        break
+    else
+        if [ $i -lt $SSH_ATTEMPTS ]; then
+            echo -e "${YELLOW}⚠️  SSH attempt $i/$SSH_ATTEMPTS failed, waiting ${SSH_WAIT}s for instance to boot...${NC}"
+            sleep $SSH_WAIT
+        fi
+    fi
+done
+
+if [ "$SSH_OK" = false ]; then
+    if [ -n "${AUTO_APPROVE:-}" ]; then
+        echo -e "${YELLOW}⚠️  Cannot SSH to OpenVPN server after $SSH_ATTEMPTS attempts.${NC}"
+        echo "   Instance may still be booting. TLS sync was NOT installed."
+        echo "   Run manually once the server is ready:"
+        echo "     cd $(pwd) && SSH_KEY=$SSH_KEY VPN_FQDN=$VPN_FQDN ./setup-tls-sync.sh"
+        exit 0
+    else
+        echo -e "${RED}❌ Cannot SSH to OpenVPN server${NC}"
+        echo "   Check:"
+        echo "   - Security group allows SSH from your IP"
+        echo "   - Key permissions: chmod 600 $SSH_KEY"
+        echo "   - Instance is running and has public IP"
+        exit 1
+    fi
 fi
 
 # All checks passed
