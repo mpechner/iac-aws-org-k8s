@@ -37,26 +37,94 @@ SENSITIVE_PATHS=(
 echo "[TEST] Checking for exposed sensitive paths..."
 echo ""
 
+# First, get the size of the homepage to detect default page behavior
+home_response=$(curl -s --max-time 5 -k "$TARGET_URL" 2>/dev/null || true)
+home_size=${#home_response}
+echo "[INFO] Homepage content size: ${home_size}b (used to detect default page serving)"
+echo ""
+
 exposed_count=0
 for path in "${SENSITIVE_PATHS[@]}"; do
     url="${TARGET_URL}${path}"
-    response=$(curl -s -o /dev/null -w "%{http_code},%{size_download}" --max-time 5 -k "$url" 2>/dev/null || echo "000,0")
-    http_code=$(echo "$response" | cut -d',' -f1)
-    size=$(echo "$response" | cut -d',' -f2)
+    response=$(curl -s --max-time 5 -k "$url" 2>/dev/null || true)
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 -k "$url" 2>/dev/null || echo "000")
+    size=${#response}
     
-    # 200, 301, 302 with content might indicate exposed resource
-    if [[ "$http_code" == "200" ]] || [[ "$http_code" == "403" ]]; then
-        if [[ $size -gt 0 ]]; then
-            echo "[FAIL] Exposed path found: $path (HTTP $http_code, ${size}b)"
-            ((exposed_count++))
-        fi
-    elif [[ "$http_code" == "301" ]] || [[ "$http_code" == "302" ]]; then
-        echo "[WARN] Path redirects: $path (HTTP $http_code)"
+    # Skip if it's the same size as homepage (likely default page serving)
+    size_diff=$((size - home_size))
+    if [[ ${size_diff#-} -lt 100 ]] && [[ "$http_code" == "200" ]]; then
+        # Content is same size as homepage - probably default page, skip
+        continue
+    fi
+    
+    # Check for actual indicators of the resource type
+    is_exposed=false
+    case "$path" in
+        /.git)
+            if echo "$response" | grep -qiE "git.*config|refs/heads|objects"; then
+                is_exposed=true
+            fi
+            ;;
+        /.env)
+            if echo "$response" | grep -qiE "^[A-Z_]+=.*$|DB_|API_KEY|SECRET"; then
+                is_exposed=true
+            fi
+            ;;
+        /.htaccess)
+            if echo "$response" | grep -qiE "Rewrite|Auth|Order|Deny"; then
+                is_exposed=true
+            fi
+            ;;
+        *config.php|*wp-config.php)
+            if echo "$response" | grep -qiE "define\(|DB_|PASSWORD|SECRET"; then
+                is_exposed=true
+            fi
+            ;;
+        /phpmyadmin)
+            if echo "$response" | grep -qiE "phpMyAdmin|pma_|mysql"; then
+                is_exposed=true
+            fi
+            ;;
+        /admin)
+            if echo "$response" | grep -qiE "login|admin|password|dashboard"; then
+                is_exposed=true
+            fi
+            ;;
+        /server-status)
+            if echo "$response" | grep -qiE "Server Version|Current Time|CPU Usage|requests"; then
+                is_exposed=true
+            fi
+            ;;
+        /phpinfo.php)
+            if echo "$response" | grep -qiE "phpinfo\(\)|PHP Version|php.ini"; then
+                is_exposed=true
+            fi
+            ;;
+        /swagger.json|/api-docs|/api/v1/swagger)
+            if echo "$response" | grep -qiE '"swagger"|"openapi"|"paths"|"definitions"'; then
+                is_exposed=true
+            fi
+            ;;
+        *)
+            # For other paths, check if content differs significantly from homepage
+            # and has meaningful structure
+            if [[ "$http_code" == "200" ]] && [[ $size -gt 100 ]] && [[ ${size_diff#-} -gt 500 ]]; then
+                # Large size difference and has structure
+                if echo "$response" | grep -qiE "<html|<title|error|docker|version"; then
+                    is_exposed=true
+                fi
+            fi
+            ;;
+    esac
+    
+    if [[ "$is_exposed" == true ]]; then
+        echo "[FAIL] Exposed path found: $path (HTTP $http_code, ${size}b)"
+        ((exposed_count++))
     fi
 done
 
 if [[ $exposed_count -eq 0 ]]; then
-    echo "[PASS] No sensitive paths exposed (all returned 404 or timeout)"
+    echo "[PASS] No sensitive paths exposed (default page serving or 404)"
 fi
 
 # Test for directory listing

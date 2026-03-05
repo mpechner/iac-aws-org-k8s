@@ -35,16 +35,20 @@ echo ""
 echo "[TEST] Checking TLS version support..."
 
 # Check TLS 1.2
-tls12_supported=$(echo | timeout 5 openssl s_client -connect "$TARGET_HOST:$TARGET_PORT" -tls1_2 2>/dev/null | grep -c "Verification" || echo 0)
-if [[ $tls12_supported -gt 0 ]]; then
+tls12_output=$(echo | timeout 5 openssl s_client -connect "$TARGET_HOST:$TARGET_PORT" -tls1_2 2>/dev/null)
+tls12_supported=$(echo "$tls12_output" | grep -c "Verification" || echo 0)
+tls12_supported=$(echo "$tls12_supported" | tr -d '\n')
+if [[ "$tls12_supported" -gt 0 ]]; then
     echo "[PASS] TLS 1.2 is supported"
 else
     echo "[FAIL] TLS 1.2 is NOT supported (required)"
 fi
 
 # Check TLS 1.3
-tls13_supported=$(echo | timeout 5 openssl s_client -connect "$TARGET_HOST:$TARGET_PORT" -tls1_3 2>/dev/null | grep -c "Verification" || echo 0)
-if [[ $tls13_supported -gt 0 ]]; then
+tls13_output=$(echo | timeout 5 openssl s_client -connect "$TARGET_HOST:$TARGET_PORT" -tls1_3 2>/dev/null)
+tls13_supported=$(echo "$tls13_output" | grep -c "Verification" || echo 0)
+tls13_supported=$(echo "$tls13_supported" | tr -d '\n')
+if [[ "$tls13_supported" -gt 0 ]]; then
     echo "[PASS] TLS 1.3 is supported (modern)"
 else
     echo "[INFO] TLS 1.3 not available (acceptable if TLS 1.2 is enabled)"

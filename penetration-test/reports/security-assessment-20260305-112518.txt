@@ -1,0 +1,215 @@
+SecureGuard Penetration Testing Report
+======================================
+Target: https://nginx.dev.foobar.support
+Date: Thu Mar  5 11:25:18 PST 2026
+Report ID: PT-NGINX-20260305-112518
+
+
+=== Security Headers Assessment ===
+
+[*] Fetching HTTP headers from https://nginx.dev.foobar.support...
+
+=== Security Headers Assessment ===
+
+[TEST] Checking header: X-Frame-Options
+[FAIL] X-Frame-Options: Not present (Security Risk)
+[TEST] Checking header: X-Content-Type-Options
+[FAIL] X-Content-Type-Options: Not present (Security Risk)
+[TEST] Checking header: Strict-Transport-Security
+[FAIL] Strict-Transport-Security: Not present (Security Risk)
+[TEST] Checking header: X-XSS-Protection
+[WARN] X-XSS-Protection: Not present (Recommended)
+[TEST] Checking header: Content-Security-Policy
+[WARN] Content-Security-Policy: Not present (Recommended)
+[TEST] Checking header: Referrer-Policy
+[WARN] Referrer-Policy: Not present (Recommended)
+[TEST] Checking header: Permissions-Policy
+[WARN] Permissions-Policy: Not present (Recommended)
+
+=== Information Disclosure Check ===
+
+[WARN] Server header discloses version: server: nginx/1.25.5
+[PASS] X-Powered-By header not present
+
+=== Raw Headers ===
+
+HTTP/2 200 
+accept-ranges: bytes
+content-type: text/html
+date: Thu, 05 Mar 2026 19:25:18 GMT
+etag: "69a9d4e9-508"
+last-modified: Thu, 05 Mar 2026 19:09:29 GMT
+server: nginx/1.25.5
+content-length: 1288
+
+
+
+=== TLS/SSL Configuration Assessment ===
+
+=== TLS/SSL Configuration Assessment ===
+Target: nginx.dev.foobar.support:443
+
+[TEST] Checking certificate validity...
+[PASS] Certificate is valid and not expired
+
+[TEST] Checking certificate chain...
+[PASS] Certificate chain complete (2 certificates)
+
+[TEST] Checking TLS version support...
+tests/test-tls.sh: line 39: [[: 0
+0: syntax error in expression (error token is "0")
+[FAIL] TLS 1.2 is NOT supported (required)
+tests/test-tls.sh: line 47: [[: 0
+0: syntax error in expression (error token is "0")
+[INFO] TLS 1.3 not available (acceptable if TLS 1.2 is enabled)
+
+[TEST] Checking for legacy SSL/TLS versions (should be disabled)...
+[PASS] ssl3 is disabled
+[PASS] tls1 is disabled
+[PASS] tls1_1 is disabled
+
+[TEST] Checking certificate details...
+[INFO] Certificate Information:
+       subject=CN=nginx.dev.foobar.support
+       issuer=C=US, O=Let's Encrypt, CN=R13
+       notBefore=Mar  5 18:12:30 2026 GMT
+       notAfter=Jun  3 18:12:29 2026 GMT
+
+[TEST] Checking for Certificate Transparency (CT)...
+[INFO] Certificate Transparency status unknown (check with external tools)
+
+[TEST] Checking OCSP Stapling...
+[WARN] OCSP Stapling may not be enabled (recommended for performance)
+
+[TEST] Checking cipher suite configuration...
+
+[TEST] Validating HSTS (HTTP Strict Transport Security)...
+[WARN] HSTS header not detected at TLS layer (may be added by application layer)
+
+=== TLS Assessment Complete ===
+
+
+=== Information Disclosure Assessment ===
+
+=== Information Disclosure Assessment ===
+Target: https://nginx.dev.foobar.support
+
+[TEST] Checking for exposed sensitive paths...
+
+[FAIL] Exposed path found: /.git (HTTP 200, 1288b)
+[FAIL] Exposed path found: /.env (HTTP 200, 1288b)
+[FAIL] Exposed path found: /.htaccess (HTTP 200, 1288b)
+[FAIL] Exposed path found: /config.php (HTTP 200, 1288b)
+[FAIL] Exposed path found: /wp-config.php (HTTP 200, 1288b)
+[FAIL] Exposed path found: /phpmyadmin (HTTP 200, 1288b)
+[FAIL] Exposed path found: /admin (HTTP 200, 1288b)
+[FAIL] Exposed path found: /backup (HTTP 200, 1288b)
+[FAIL] Exposed path found: /.svn (HTTP 200, 1288b)
+[FAIL] Exposed path found: /.hg (HTTP 200, 1288b)
+[FAIL] Exposed path found: /docker-compose.yml (HTTP 200, 1288b)
+[FAIL] Exposed path found: /Dockerfile (HTTP 200, 1288b)
+[FAIL] Exposed path found: /server-status (HTTP 200, 1288b)
+[FAIL] Exposed path found: /phpinfo.php (HTTP 200, 1288b)
+[FAIL] Exposed path found: /test (HTTP 200, 1288b)
+[FAIL] Exposed path found: /debug (HTTP 200, 1288b)
+[FAIL] Exposed path found: /api/v1/swagger (HTTP 200, 1288b)
+[FAIL] Exposed path found: /swagger.json (HTTP 200, 1288b)
+[FAIL] Exposed path found: /api-docs (HTTP 200, 1288b)
+
+[TEST] Checking for directory listing enabled...
+[PASS] Directory listing not detected
+
+[TEST] Checking error pages for information disclosure...
+[PASS] Error page 404 does not disclose sensitive information
+[PASS] Error page 500 does not disclose sensitive information
+
+[TEST] Checking server fingerprinting...
+[FAIL] Server version disclosed: server: nginx/1.25.5
+
+[TEST] Checking for dangerous HTTP methods...
+[INFO] OPTIONS method did not return Allow header
+[PASS] TRACE method disabled or not allowed (HTTP 405)
+
+=== Information Disclosure Assessment Complete ===
+
+
+=== Attack Vector Validation ===
+
+=== Attack Vector Validation ===
+Target: https://nginx.dev.foobar.support
+
+[TEST] Testing XSS protection...
+[PASS] XSS payloads properly handled (not reflected or encoded)
+
+[TEST] Testing clickjacking protection...
+[FAIL] X-Frame-Options header missing (clickjacking vulnerability)
+
+[TEST] Testing MIME sniffing protection...
+[FAIL] X-Content-Type-Options: nosniff missing (MIME sniffing possible)
+
+[TEST] Testing path traversal protection...
+[PASS] Path traversal attempts properly blocked
+
+[TEST] Testing host header handling...
+[PASS] Host header injection not detected
+
+[TEST] Testing for open redirect vulnerabilities...
+[PASS] No open redirect parameters detected
+
+[TEST] Checking for CSRF protection indicators...
+[INFO] No CSRF tokens detected (may not have forms or uses alternative protection)
+
+[TEST] Testing for basic SQL injection indicators...
+[PASS] No SQL error messages disclosed (input appears sanitized)
+
+=== Attack Vector Validation Complete ===
+
+
+=== Rate Limiting Assessment ===
+
+=== Rate Limiting Assessment ===
+Target: https://nginx.dev.foobar.support
+
+[TEST] Basic rate limiting test...
+Sending 20 requests in rapid succession...
+
+[*] Sequential rapid request test...
+
+Sequential test results:
+  Successful: 20/20
+  Rate limited (429): 0
+  Errors: 0
+  Duration: 2.820738000s
+  Requests/sec: 7.09
+[INFO] All requests succeeded - rate limiting may not be active or threshold not reached
+
+[TEST] Concurrent connection test...
+Launching 5 parallel requests...
+200
+200
+200
+200
+200
+tests/test-rate-limiting.sh: line 86: /tmp/concurrent_results.txt: No such file or directory
+
+Concurrent test results:
+  Total responses: 0
+  Successful: 0
+  Rate limited (429): 0
+  Server errors: 0
+  Duration: .151698000s
+[INFO] Concurrent requests handled - check if rate limiting is configured
+
+[TEST] Slow connection behavior...
+Testing with intentionally slow request (partial data)...
+[INFO] Slow request completed in 0.113686s
+
+[TEST] Checking for rate limit headers...
+[INFO] No rate limit headers detected (rate limiting may be at infrastructure level)
+
+=== Rate Limiting Assessment Summary ===
+
+[INFO] Results inconclusive - review individual test results above
+
+=== Rate Limiting Assessment Complete ===
+

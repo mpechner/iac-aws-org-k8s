@@ -75,16 +75,19 @@ echo "Launching $CONCURRENT_REQUESTS parallel requests..."
 
 concurrent_start=$(date +%s.%N)
 
+# Initialize results file
+> /tmp/concurrent_results.txt
+
 # Use xargs for parallel execution
 seq $CONCURRENT_REQUESTS | xargs -P $CONCURRENT_REQUESTS -I {} \
-    curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 -k "$TARGET_URL" 2>/dev/null || true > /tmp/concurrent_results.txt
+    sh -c "curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 -k '$TARGET_URL' >> /tmp/concurrent_results.txt 2>/dev/null || true"
 
 concurrent_end=$(date +%s.%N)
 concurrent_duration=$(echo "$concurrent_end - $concurrent_start" | bc)
 
 # Analyze concurrent results
 total_concurrent=$(wc -l < /tmp/concurrent_results.txt 2>/dev/null || echo 0)
-success_concurrent=$(grep -c "^200$\|^301$\|^302$" /tmp/concurrent_results.txt 2>/dev/null || echo 0)
+success_concurrent=$(grep -cE "^200$|^301$|^302$" /tmp/concurrent_results.txt 2>/dev/null || echo 0)
 rate_limit_concurrent=$(grep -c "^429$" /tmp/concurrent_results.txt 2>/dev/null || echo 0)
 error_concurrent=$(grep -c "^5" /tmp/concurrent_results.txt 2>/dev/null || echo 0)
 
