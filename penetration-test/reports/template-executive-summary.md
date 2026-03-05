@@ -7,7 +7,7 @@
 
 ## Overview
 
-SecureGuard Penetration Testing Services conducted a comprehensive security assessment of the nginx web infrastructure deployed within the Kubernetes ingress stack. The assessment focused on validating security controls, identifying vulnerabilities, and verifying defense-in-depth mechanisms.
+FooBar Penetration Testing Services conducted a comprehensive security assessment of the nginx web infrastructure deployed within the Kubernetes ingress stack. The assessment focused on validating security controls, identifying vulnerabilities, and verifying defense-in-depth mechanisms.
 
 ## Scope
 
@@ -65,7 +65,7 @@ SecureGuard Penetration Testing Services conducted a comprehensive security asse
 
 ---
 
-**Prepared by:** SecureGuard Penetration Testing Services  
+**Prepared by:** FooBar Penetration Testing Services  
 **Lead Assessor:** [ASSESSOR_NAME]  
 **Review Date:** [DATE]  
 **Next Assessment Recommended:** [DATE + 12 months]

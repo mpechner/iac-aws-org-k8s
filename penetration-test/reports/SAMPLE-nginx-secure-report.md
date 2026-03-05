@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-SecureGuard Penetration Testing Services conducted a comprehensive security assessment of the nginx ingress endpoint. The assessment validates that the nginx deployment follows security best practices and is protected against common web vulnerabilities.
+FooBar Penetration Testing Services conducted a comprehensive security assessment of the nginx ingress endpoint. The assessment validates that the nginx deployment follows security best practices and is protected against common web vulnerabilities.
 
 **Overall Assessment: PASSED**
 
@@ -217,7 +217,7 @@ The deployment is suitable for production use with the understanding that securi
 
 ---
 
-**Prepared by:** SecureGuard Penetration Testing Services  
+**Prepared by:** FooBar Penetration Testing Services  
 **Assessment Team:** Senior Security Consultants  
 **Quality Review:** [REVIEWER_NAME]  
 **Report Date:** 2026-03-05  

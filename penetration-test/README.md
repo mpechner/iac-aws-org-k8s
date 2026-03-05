@@ -1,6 +1,6 @@
 # Penetration Testing Suite
 
-**Company:** SecureGuard Penetration Testing Services  
+**Company:** FooBar Penetration Testing Services  
 **Assessment Date:** 2026-03-05  
 **Target:** nginx.dev.foobar.support  
 **Scope:** External infrastructure assessment of the Nginx ingress endpoint
@@ -98,9 +98,29 @@ Validates DoS protection:
 - `nmap` - Network scanning (optional)
 - `nikto` - Web vulnerability scanner (optional)
 
+## AWS Penetration Testing Policy Compliance
+
+**Important:** These tests comply with [AWS Penetration Testing Policy](https://aws.amazon.com/security/penetration-testing/) for resources you own:
+
+- ✅ **Permitted without approval:** Testing EC2 instances, NLBs, and Route53 records in your own AWS account
+- ✅ **Low volume:** Tests use minimal requests (single-digit to ~25 requests max) - well below abuse thresholds
+- ✅ **Non-exploitative:** Tests validate security controls without actual exploitation
+- ✅ **No DoS testing:** Rate limiting test uses gentle load (20 sequential + 5 concurrent requests)
+
+**Prohibited activities (NOT performed by these tests):**
+- DNS zone walking on Route53
+- Resource exhaustion or volumetric DoS attacks
+- Testing other AWS customers' resources
+- Testing AWS services themselves (only your application layer)
+
+**Always ensure:**
+1. You own the target infrastructure (your NLB, your domain)
+2. You have authorization if testing shared/multi-tenant resources
+3. Tests are run against your own account only
+
 ## Disclaimer
 
-These tests are designed to be non-destructive and safe for production environments. However, always obtain proper authorization before testing any system you do not own.
+These tests are designed to be non-destructive and safe for production environments. However, always obtain proper authorization before testing any system you do not own. The tests do not exploit vulnerabilities - they only validate the presence and effectiveness of security controls.
 
 ---
 
