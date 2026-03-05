@@ -14,7 +14,7 @@ Another attempt at creating AWS infrastructure
 
 See [SECURITY-REVIEW.md](SECURITY-REVIEW.md) and [penetration-test/](penetration-test/) for detailed findings and remediation.
 
-**Note:** This repo is public. The **ECR** (`ecr/`) component is in progress and not tested.
+**Note:** This repo is public. 
 
 A few years ago I created a AWS eks env in this repo https://github.com/mpechner/terraform_play
 
