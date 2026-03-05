@@ -97,8 +97,7 @@ kubectl config use-context dev-rke2
 
 # Apply security headers middleware
 cd deployments/dev-cluster/1-infrastructure
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values (account_id, aws_assume_role_arn, route53_zone_id, etc.)
+# Ensure terraform.tfvars exists with your values (account_id, aws_assume_role_arn, route53_zone_id, etc.)
 terraform init
 terraform apply
 ```
@@ -136,8 +135,7 @@ kubectl config use-context dev-rke2
 
 # Apply nginx configuration changes
 cd deployments/dev-cluster/2-applications
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
+# Ensure terraform.tfvars exists with your values
 terraform init
 terraform apply
 ```
