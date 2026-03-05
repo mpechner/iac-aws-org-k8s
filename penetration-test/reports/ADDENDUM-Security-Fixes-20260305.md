@@ -88,10 +88,25 @@ Applied headers:
   - Added middleware reference in Traefik Helm values
 
 **Deployment Required:**
+
+The security headers middleware is deployed via Terraform in the 1-infrastructure stage.
+
 ```bash
+# Ensure kubectl is configured for the cluster
+kubectl config use-context dev-rke2
+
+# Apply security headers middleware
 cd deployments/dev-cluster/1-infrastructure
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values (account_id, aws_assume_role_arn, route53_zone_id, etc.)
+terraform init
 terraform apply
 ```
+
+**What this deploys:**
+- Creates `traefik-security-headers` Middleware resource in the traefik namespace
+- Configures Traefik to apply headers to all websecure (HTTPS) entrypoints
+- Headers are applied globally to all services behind Traefik
 
 ---
 
@@ -103,7 +118,7 @@ terraform apply
 
 **Remediation:**
 
-Added `server_tokens off;` directive to nginx configuration.
+Added `server_tokens off;` directive to nginx configuration in the nginx-sample module.
 
 **Files Modified:**
 - `deployments/modules/nginx-sample/config/default.conf`
@@ -112,9 +127,46 @@ Added `server_tokens off;` directive to nginx configuration.
 **Result:** Nginx will now respond with generic `Server: nginx` header without version information.
 
 **Deployment Required:**
+
+The nginx configuration change requires redeploying the 2-applications stage.
+
 ```bash
+# Ensure kubectl context is set
+kubectl config use-context dev-rke2
+
+# Apply nginx configuration changes
 cd deployments/dev-cluster/2-applications
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+terraform init
 terraform apply
+```
+
+**Note:** This will trigger a rolling update of the nginx deployment with the new configuration.
+
+---
+
+### Full Redeployment (If Needed)
+
+If you need to fully rebuild from scratch with all security fixes:
+
+```bash
+# 1. Setup SSH keys (Step 2 from README)
+export AWS_ACCOUNT_ID=364082771643
+./scripts/create-openvpn-ssh-key.sh
+./scripts/create-rke-ssh-key.sh
+
+# 2. Deploy 1-infrastructure (includes security headers)
+cd deployments/dev-cluster/1-infrastructure
+terraform apply
+
+# 3. Deploy 2-applications (includes nginx with server_tokens off)
+cd ../2-applications
+terraform apply
+
+# 4. Verify deployment
+kubectl get middleware -n traefik security-headers
+kubectl get pods -n nginx-sample
 ```
 
 ---
@@ -134,18 +186,58 @@ terraform apply
 
 ### Verification Commands
 
+After deployment completes, verify the fixes are active:
+
 ```bash
-# Check headers
+# 1. Check that security headers middleware exists
+kubectl get middleware -n traefik security-headers -o yaml
+
+# 2. Check headers are present in responses
 curl -sI https://nginx.dev.foobar.support | grep -E "^X-|Content-Security|Strict-Transport|Referrer|Permissions"
 
-# Check server banner (should show no version)
-curl -sI https://nginx.dev.foobar.support | grep -i server
+# Expected output:
+# X-Frame-Options: SAMEORIGIN
+# X-Content-Type-Options: nosniff
+# X-XSS-Protection: 1; mode=block
+# Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+# Content-Security-Policy: default-src 'self' ...
+# Referrer-Policy: strict-origin-when-cross-origin
+# Permissions-Policy: accelerometer=(), camera=() ...
 
-# Run full test suite
+# 3. Check server banner (should show no version)
+curl -sI https://nginx.dev.foobar.support | grep -i server
+# Expected: server: nginx (no version number)
+
+# 4. Run full penetration test suite
 cd penetration-test
 export TARGET_URL=https://nginx.dev.foobar.support
 ./run-all-tests.sh
+
+# 5. Check Traefik logs for middleware application
+kubectl logs -n traefik deployment/traefik | grep -i "security\|middleware"
 ```
+
+### Expected Post-Deployment Results
+
+| Test | Expected Result |
+|------|-----------------|
+| `test-headers.sh` | All 7 security headers present |
+| `test-tls.sh` | TLS 1.2/1.3 supported, certificate valid |
+| `test-info-disclosure.sh` | Server version hidden, no exposed paths |
+| `test-attack-vectors.sh` | XSS protected, clickjacking protected |
+| `test-rate-limiting.sh` | Rate limiting at infrastructure level |
+
+### Troubleshooting
+
+**Issue:** Headers not appearing in responses
+- Verify middleware is created: `kubectl get middleware -n traefik`
+- Check Traefik logs: `kubectl logs -n traefik deployment/traefik`
+- Ensure terraform apply completed successfully in 1-infrastructure
+
+**Issue:** Server version still showing
+- Verify 2-applications was redeployed after config change
+- Check nginx pod was restarted: `kubectl get pods -n nginx-sample`
+- Force rollout: `kubectl rollout restart deployment/nginx-sample -n nginx-sample`
 
 ---
 
