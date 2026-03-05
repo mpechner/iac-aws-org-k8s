@@ -226,6 +226,8 @@ fi
 trace_test=$(curl -s -X TRACE -o /dev/null -w "%{http_code}" --max-time 5 -k "$TARGET_URL" 2>/dev/null || echo "000")
 if [[ "$trace_test" == "200" ]]; then
     echo "[FAIL] TRACE method enabled (XST vulnerability risk)"
+elif [[ "$trace_test" == "405" ]]; then
+    echo "[PASS] TRACE method properly blocked (HTTP 405 Method Not Allowed)"
 else
     echo "[PASS] TRACE method disabled or not allowed (HTTP $trace_test)"
 fi

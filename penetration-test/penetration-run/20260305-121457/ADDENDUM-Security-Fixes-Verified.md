@@ -51,7 +51,7 @@ All OWASP-recommended security headers are now present and correctly configured:
 - [x] Directory listing not detected
 - [x] Error pages don't disclose sensitive information
 - [x] Server fingerprinting minimized (version removed)
-- [x] TRACE method disabled (HTTP 405)
+- [ ] TRACE method enabled (HTTP 200) - **See Known Issues below**
 
 ### 4. Attack Vector Validation - PASSED ✓
 
@@ -109,14 +109,90 @@ curl -I -k https://nginx.dev.foobar.support
 
 ---
 
+## Production Security Review - Required Actions
+
+### TRACE Method Enabled (XST Vulnerability Risk)
+
+**Risk Level:**
+- **Production:** HIGH ⚠️
+- **Development (VPN-only):** LOW/ACCEPTED ✓
+
+**Finding:**
+The TRACE HTTP method is currently enabled on Rancher (`rancher.dev.foobar.support`). TRACE returns HTTP 200 instead of 405 Method Not Allowed.
+
+**Impact:**
+- **XST (Cross-Site Tracing) Attack:** Attackers can use TRACE to steal cookies marked `HttpOnly`, bypassing XSS protections
+- **Information Disclosure:** Request headers (including authentication tokens) are echoed back to the attacker
+- **Low risk in dev:** Site requires VPN access, limiting attack surface
+
+**Remediation for Production:**
+Implement **AWS WAF WebACL** on the internal NLB with rule to block TRACE/OPTIONS methods:
+
+```hcl
+# AWS WAF Rule to add to internal NLB
+resource "aws_wafv2_web_acl" "internal_nlb" {
+  name  = "internal-nlb-waf"
+  scope = "REGIONAL"
+
+  rule {
+    name     = "BlockHTTPMethods"
+    priority = 1
+
+    action {
+      block {}
+    }
+
+    statement {
+      or_statement {
+        statement {
+          byte_match_statement {
+            field_to_match {
+              method {}
+            }
+            positional_constraint = "EXACTLY"
+            search_string         = "TRACE"
+            text_transformation {
+              priority = 0
+              type     = "LOWERCASE"
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "BlockHTTPMethods"
+      sampled_requests_enabled   = true
+    }
+  }
+}
+```
+
+**Acceptance Criteria for Dev:**
+- [ ] Documented as accepted risk for VPN-only internal tools
+- [ ] AWS WAF implementation ticket created for production migration
+- [ ] Security team sign-off on risk acceptance
+
+**Files Modified (Pending Production Fix):**
+- `deployments/dev-cluster/1-infrastructure/main.tf` - Added `block_trace_global` IngressRoute (attempted Traefik-level block)
+- Traefik IngressRoute approach insufficient - requires WAF for production
+
+---
+
 ## Sign-Off
 
-**Security Assessment:** All critical security controls are now in place and operational.
+**Security Assessment:** All critical security controls are now in place and operational for the **development environment**.
+
+**Production Readiness:**
+- ⚠️ **ACTION REQUIRED:** Implement AWS WAF rule to block TRACE method before production deployment
+- All other security controls verified and passing
 
 **Recommended Actions:**
 - Monitor for new vulnerabilities through regular penetration testing
-- Consider implementing application-level rate limiting if required
+- Implement AWS WAF on internal NLB for production (see Production Security Review above)
 - Review and update Content-Security-Policy as application features evolve
+- Document TRACE method exception for internal VPN-only tools (dev environment accepted risk)
 
 ---
 

@@ -243,6 +243,11 @@ module "traefik" {
         expose = { default = true }
       }
     }
+    # Security: Disable TRACE method at entrypoint level
+    additionalArguments = [
+      "--entrypoints.web.transport.lifeCycle.requestAcceptGraceTimeout=0",
+      "--entrypoints.websecure.transport.lifeCycle.requestAcceptGraceTimeout=0"
+    ]
     # IngressRoutes in traefik namespace reference services in nginx-sample and cattle-system; required for routes to work
     providers = {
       kubernetesCRD = {
@@ -318,6 +323,69 @@ resource "kubernetes_manifest" "traefik_security_headers" {
   depends_on = [module.traefik]
 }
 
+# Middleware to return 405 Method Not Allowed for TRACE
+resource "kubernetes_manifest" "block_trace_middleware" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "block-trace"
+      namespace = "traefik"
+    }
+    spec = {
+      # Return 405 for any request
+      errors = {
+        status  = ["405"]
+        service = {
+          name = "error@internal"
+          kind = "TraefikService"
+        }
+        query = "/405"
+      }
+    }
+  }
+
+  depends_on = [module.traefik]
+}
+
+# Block TRACE method globally using a catch-all IngressRoute
+resource "kubernetes_manifest" "block_trace_global" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "block-trace-global"
+      namespace = "traefik"
+    }
+    spec = {
+      entryPoints = ["web", "websecure"]
+      routes = [
+        {
+          # Match TRACE method for all hosts
+          match    = "Method(`TRACE`)"
+          kind     = "Rule"
+          priority = 0
+          # Use custom response headers to signal method not allowed
+          middlewares = [
+            {
+              name      = "block-trace"
+              namespace = "traefik"
+            }
+          ]
+          services = [
+            {
+              name = "noop@internal"
+              kind = "TraefikService"
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [module.traefik, kubernetes_manifest.block_trace_middleware]
+}
+
 # Additional internal service for Traefik dashboard and RKE server access
 resource "kubernetes_service_v1" "traefik_internal" {
   metadata {
@@ -337,6 +405,12 @@ resource "kubernetes_service_v1" "traefik_internal" {
         "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.private_subnet_ids)
       } : {}
     )
+  }
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations["field.cattle.io/publicEndpoints"],
+    ]
   }
 
   spec {

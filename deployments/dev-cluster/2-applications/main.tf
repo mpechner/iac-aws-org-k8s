@@ -323,6 +323,28 @@ resource "kubernetes_manifest" "rancher_cert" {
   depends_on = [module.applications]
 }
 
+# Chain middleware: security headers for Rancher
+resource "kubernetes_manifest" "rancher_security_chain" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "rancher-security-chain"
+      namespace = "traefik"
+    }
+    spec = {
+      chain = {
+        middlewares = [
+          {
+            name      = "security-headers"
+            namespace = "traefik"
+          }
+        ]
+      }
+    }
+  }
+}
+
 # Rancher on 443 (HTTPS): websecure = port 443, TLS from rancher-tls.
 resource "kubernetes_manifest" "rancher_ingressroute" {
   manifest = {
@@ -341,7 +363,7 @@ resource "kubernetes_manifest" "rancher_ingressroute" {
           priority = 100
           middlewares = [
             {
-              name      = "security-headers"
+              name      = "rancher-security-chain"
               namespace = "traefik"
             }
           ]
@@ -361,7 +383,10 @@ resource "kubernetes_manifest" "rancher_ingressroute" {
     }
   }
 
-  depends_on = [kubernetes_manifest.rancher_cert]
+  depends_on = [
+    kubernetes_manifest.rancher_cert,
+    kubernetes_manifest.rancher_security_chain
+  ]
 }
 
 # Applications module - Creates Ingress + cert-manager (same pattern as nginx; Rancher uses it for TLS + routing)

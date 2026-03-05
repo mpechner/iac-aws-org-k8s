@@ -1,0 +1,188 @@
+FooBar Penetration Testing Report
+======================================
+Target: https://traefik.dev.foobar.support
+Date: Thu Mar  5 12:29:42 PST 2026
+Report ID: PT-traefik_dev_foobar_support-20260305-122930
+Run Directory: penetration-run/20260305-122930
+
+
+=== Security Headers Assessment ===
+
+[*] Fetching HTTP headers from https://traefik.dev.foobar.support...
+
+=== Security Headers Assessment ===
+
+[TEST] Checking header: X-Frame-Options
+[PASS] X-Frame-Options present: SAMEORIGIN
+[TEST] Checking header: X-Content-Type-Options
+[PASS] X-Content-Type-Options: nosniff
+[TEST] Checking header: Strict-Transport-Security
+[PASS] Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+[TEST] Checking header: X-XSS-Protection
+[PASS] X-XSS-Protection: 1; mode=block
+[TEST] Checking header: Content-Security-Policy
+[PASS] Content-Security-Policy present: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';
+[TEST] Checking header: Referrer-Policy
+[PASS] Referrer-Policy present: strict-origin-when-cross-origin
+[TEST] Checking header: Permissions-Policy
+[PASS] Permissions-Policy present: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+
+=== Information Disclosure Check ===
+
+[PASS] Server header not present (information hiding)
+[PASS] X-Powered-By header not present
+
+=== Raw Headers ===
+
+HTTP/2 405 
+content-security-policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';
+permissions-policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+referrer-policy: strict-origin-when-cross-origin
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-xss-protection: 1; mode=block
+date: Thu, 05 Mar 2026 20:29:42 GMT
+
+
+
+=== TLS/SSL Configuration Assessment ===
+
+=== TLS/SSL Configuration Assessment ===
+Target: traefik.dev.foobar.support:443
+
+[TEST] Checking certificate validity...
+[PASS] Certificate is valid and not expired
+
+[TEST] Checking certificate chain...
+[PASS] Certificate chain complete (2 certificates)
+
+[TEST] Checking TLS version support...
+
+=== Information Disclosure Assessment ===
+
+=== Information Disclosure Assessment ===
+Target: https://traefik.dev.foobar.support
+
+[TEST] Checking for exposed sensitive paths...
+
+[INFO] Homepage content size: 0b (used to detect default page serving)
+
+[PASS] No sensitive paths exposed (default page serving or 404)
+
+[TEST] Checking for directory listing enabled...
+[PASS] Directory listing not detected
+
+[TEST] Checking error pages for information disclosure...
+[PASS] Error page 404 does not disclose sensitive information
+[PASS] Error page 500 does not disclose sensitive information
+
+[TEST] Checking server fingerprinting...
+[PASS] Server header not present (best practice)
+
+[TEST] Checking for dangerous HTTP methods...
+[INFO] OPTIONS method did not return Allow header
+[PASS] TRACE method disabled or not allowed (HTTP 405)
+
+=== Information Disclosure Assessment Complete ===
+
+
+=== Attack Vector Validation ===
+
+=== Attack Vector Validation ===
+Target: https://traefik.dev.foobar.support
+
+[TEST] Testing XSS protection...
+[PASS] XSS payloads properly handled (not reflected or encoded)
+[INFO] X-XSS-Protection header present (legacy browser protection)
+
+[TEST] Testing clickjacking protection...
+[PASS] Clickjacking protection enabled: x-frame-options: SAMEORIGIN
+[PASS] CSP frame-ancestors directive present for additional clickjacking protection
+
+[TEST] Testing MIME sniffing protection...
+[PASS] X-Content-Type-Options: nosniff (prevents MIME sniffing)
+
+[TEST] Testing path traversal protection...
+[PASS] Path traversal attempts properly blocked
+
+[TEST] Testing host header handling...
+[PASS] Host header injection not detected
+
+[TEST] Testing for open redirect vulnerabilities...
+[PASS] No open redirect parameters detected
+
+[TEST] Checking for CSRF protection indicators...
+[INFO] No CSRF tokens detected (may not have forms or uses alternative protection)
+
+[TEST] Testing for basic SQL injection indicators...
+[PASS] No SQL error messages disclosed (input appears sanitized)
+
+=== Attack Vector Validation Complete ===
+
+
+=== Rate Limiting Assessment ===
+
+=== Rate Limiting Assessment ===
+Target: https://traefik.dev.foobar.support
+
+[TEST] Basic rate limiting test...
+Sending 20 requests in rapid succession...
+
+[*] Sequential rapid request test...
+
+Sequential test results:
+  Successful: 20/20
+  Rate limited (429): 0
+  Errors: 0
+  Duration: 2.687905000s
+  Requests/sec: 7.44
+[INFO] All requests succeeded - rate limiting may not be active or threshold not reached
+
+[TEST] Concurrent connection test...
+Launching 5 parallel requests...
+
+Concurrent test results:
+  Total responses:        5
+  Successful: 5
+  Rate limited (429): 0
+0
+  Server errors: 0
+0
+  Duration: .154138000s
+tests/test-rate-limiting.sh: line 102: [[: 0
+0: syntax error in expression (error token is "0")
+tests/test-rate-limiting.sh: line 104: 0
+0: syntax error in expression (error token is "0")
+[INFO] Concurrent requests handled - check if rate limiting is configured
+
+[TEST] Slow connection behavior...
+Testing with intentionally slow request (partial data)...
+[INFO] Slow request response: HTTP 302 (0.113564s)
+
+[TEST] Checking for rate limit headers...
+[INFO] No rate limit headers detected (rate limiting may be at infrastructure level)
+
+=== Rate Limiting Assessment Summary ===
+
+tests/test-rate-limiting.sh: line 167: [[: 0
+0: syntax error in expression (error token is "0")
+[WARN] No rate limiting detected in basic tests
+Recommendations:
+  1. Verify Traefik/ingress rate limiting is configured
+  2. Check AWS WAF or NLB rate limiting settings
+  3. Consider implementing application-level rate limiting
+  4. Test with higher volume for production readiness
+
+=== Rate Limiting Assessment Complete ===
+
+
+==============================================
+Site Test Summary: https://traefik.dev.foobar.support
+==============================================
+Total Tests:  27
+Passed:       25
+Failed:       0
+Warnings:     1
+
+[+] SECURITY ASSESSMENT: PASSED

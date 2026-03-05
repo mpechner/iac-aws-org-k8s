@@ -42,7 +42,7 @@ export TARGET_URL="https://nginx.dev.foobar.support"
 
 ```bash
 # Create a sites file (one URL per line)
-cat > tests/sites.txt << 'EOF'
+cat > sites.txt << 'EOF'
 # Public site
 https://nginx.dev.foobar.support
 
@@ -52,9 +52,9 @@ https://rancher.dev.foobar.support
 EOF
 
 # Run tests against all sites
-./run-all-tests.sh tests/sites.txt
+./run-all-tests.sh sites.txt
 
-# Or use default sites file (tests/sites.txt)
+# Or use default sites file (sites.txt)
 ./run-all-tests.sh
 ```
 

@@ -1,0 +1,21 @@
+FooBar Penetration Testing - Master Summary
+==============================================
+Date: Thu Mar  5 12:30:08 PST 2026
+Sites Tested: 3
+Run Directory: penetration-run/20260305-122930
+
+==============================================
+Results Summary
+==============================================
+
+Sites Passed: 2 / 3
+Sites Failed: 1 / 3
+
+Per-Site Reports:
+  - https://nginx.dev.foobar.support: security-assessment-nginx_dev_foobar_support-20260305-122930.txt
+  - https://traefik.dev.foobar.support: security-assessment-traefik_dev_foobar_support-20260305-122930.txt
+  - https://rancher.dev.foobar.support: security-assessment-rancher_dev_foobar_support-20260305-122930.txt
+
+==============================================
+[!] OVERALL ASSESSMENT: 1 SITE(S) REQUIRE REVIEW
+==============================================

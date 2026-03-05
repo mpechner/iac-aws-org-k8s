@@ -21,7 +21,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Parse arguments
-SITES_FILE="${1:-tests/sites.txt}"
+SITES_FILE="${1:-sites.txt}"
 
 # Validate sites file
 if [[ ! -f "$SITES_FILE" ]]; then
@@ -40,8 +40,16 @@ RUN_DIR="penetration-run/$TIMESTAMP"
 # Create timestamped run directory
 mkdir -p "$RUN_DIR"
 
-# Read sites into array
-mapfile -t SITES < <(grep -v '^#' "$SITES_FILE" | grep -v '^$' | sed 's/[[:space:]]*$//')
+# Read sites into array (portable, works with bash 3.2+)
+SITES=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+    # Skip comments and empty lines
+    [[ "$line" =~ ^#.*$ ]] && continue
+    [[ -z "${line// }" ]] && continue
+    # Trim trailing whitespace
+    line=$(echo "$line" | sed 's/[[:space:]]*$//')
+    SITES+=("$line")
+done < "$SITES_FILE"
 
 if [[ ${#SITES[@]} -eq 0 ]]; then
     echo -e "${RED}Error: No valid sites found in $SITES_FILE${NC}"
@@ -99,11 +107,11 @@ run_site_tests() {
     run_test_category "tests/test-attack-vectors.sh" "Attack Vector Validation" "$site_report"
     run_test_category "tests/test-rate-limiting.sh" "Rate Limiting Assessment" "$site_report"
     
-    # Count results for this site
-    local site_total=$(grep -c "^\[TEST\]" "$site_report" 2>/dev/null || echo 0)
-    local site_passed=$(grep -c "^\[PASS\]" "$site_report" 2>/dev/null || echo 0)
-    local site_failed=$(grep -c "^\[FAIL\]" "$site_report" 2>/dev/null || echo 0)
-    local site_warnings=$(grep -c "^\[WARN\]" "$site_report" 2>/dev/null || echo 0)
+    # Count results for this site (strip newlines with tr)
+    local site_total=$(grep -c "^\[TEST\]" "$site_report" 2>/dev/null | tr -d '\n' || echo 0)
+    local site_passed=$(grep -c "^\[PASS\]" "$site_report" 2>/dev/null | tr -d '\n' || echo 0)
+    local site_failed=$(grep -c "^\[FAIL\]" "$site_report" 2>/dev/null | tr -d '\n' || echo 0)
+    local site_warnings=$(grep -c "^\[WARN\]" "$site_report" 2>/dev/null | tr -d '\n' || echo 0)
     
     # Add site summary to report
     {
@@ -184,7 +192,7 @@ MASTER_REPORT="$RUN_DIR/MASTER-SUMMARY-${TIMESTAMP}.txt"
     echo ""
     echo "Per-Site Reports:"
     for site in "${SITES[@]}"; do
-        local site_safe=$(sanitize_site_name "$site")
+        site_safe=$(sanitize_site_name "$site")
         echo "  - $site: security-assessment-${site_safe}-${TIMESTAMP}.txt"
     done
     echo ""
