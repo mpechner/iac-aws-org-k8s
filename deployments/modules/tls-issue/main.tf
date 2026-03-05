@@ -64,6 +64,12 @@ resource "kubernetes_namespace_v1" "openvpn_certs" {
       "app.kubernetes.io/name" = "openvpn-certs"
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations,
+    ]
+  }
 }
 
 resource "kubernetes_manifest" "openvpn_cert" {

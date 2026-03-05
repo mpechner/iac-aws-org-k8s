@@ -1,0 +1,174 @@
+SecureGuard Penetration Testing Report
+======================================
+Target: https://nginx.dev.foobar.support
+Date: Thu Mar  5 11:44:59 PST 2026
+Report ID: PT-NGINX-20260305-114459
+
+
+=== Security Headers Assessment ===
+
+[*] Fetching HTTP headers from https://nginx.dev.foobar.support...
+
+=== Security Headers Assessment ===
+
+[TEST] Checking header: X-Frame-Options
+[FAIL] X-Frame-Options: Not present (Security Risk)
+[TEST] Checking header: X-Content-Type-Options
+[FAIL] X-Content-Type-Options: Not present (Security Risk)
+[TEST] Checking header: Strict-Transport-Security
+[FAIL] Strict-Transport-Security: Not present (Security Risk)
+[TEST] Checking header: X-XSS-Protection
+[WARN] X-XSS-Protection: Not present (Recommended)
+[TEST] Checking header: Content-Security-Policy
+[WARN] Content-Security-Policy: Not present (Recommended)
+[TEST] Checking header: Referrer-Policy
+[WARN] Referrer-Policy: Not present (Recommended)
+[TEST] Checking header: Permissions-Policy
+[WARN] Permissions-Policy: Not present (Recommended)
+
+=== Information Disclosure Check ===
+
+[WARN] Server header discloses version: server: nginx/1.25.5
+[PASS] X-Powered-By header not present
+
+=== Raw Headers ===
+
+HTTP/2 200 
+accept-ranges: bytes
+content-type: text/html
+date: Thu, 05 Mar 2026 19:44:59 GMT
+etag: "69a9d4e9-508"
+last-modified: Thu, 05 Mar 2026 19:09:29 GMT
+server: nginx/1.25.5
+content-length: 1288
+
+
+
+=== TLS/SSL Configuration Assessment ===
+
+=== TLS/SSL Configuration Assessment ===
+Target: nginx.dev.foobar.support:443
+
+[TEST] Checking certificate validity...
+[PASS] Certificate is valid and not expired
+
+[TEST] Checking certificate chain...
+[PASS] Certificate chain complete (2 certificates)
+
+[TEST] Checking TLS version support...
+
+=== Information Disclosure Assessment ===
+
+=== Information Disclosure Assessment ===
+Target: https://nginx.dev.foobar.support
+
+[TEST] Checking for exposed sensitive paths...
+
+[INFO] Homepage content size: 1281b (used to detect default page serving)
+
+[PASS] No sensitive paths exposed (default page serving or 404)
+
+[TEST] Checking for directory listing enabled...
+[PASS] Directory listing not detected
+
+[TEST] Checking error pages for information disclosure...
+[PASS] Error page 404 does not disclose sensitive information
+[PASS] Error page 500 does not disclose sensitive information
+
+[TEST] Checking server fingerprinting...
+[FAIL] Server version disclosed: server: nginx/1.25.5
+
+[TEST] Checking for dangerous HTTP methods...
+[INFO] OPTIONS method did not return Allow header
+[PASS] TRACE method disabled or not allowed (HTTP 405)
+
+=== Information Disclosure Assessment Complete ===
+
+
+=== Attack Vector Validation ===
+
+=== Attack Vector Validation ===
+Target: https://nginx.dev.foobar.support
+
+[TEST] Testing XSS protection...
+[PASS] XSS payloads properly handled (not reflected or encoded)
+
+[TEST] Testing clickjacking protection...
+[FAIL] X-Frame-Options header missing (clickjacking vulnerability)
+
+[TEST] Testing MIME sniffing protection...
+[FAIL] X-Content-Type-Options: nosniff missing (MIME sniffing possible)
+
+[TEST] Testing path traversal protection...
+[PASS] Path traversal attempts properly blocked
+
+[TEST] Testing host header handling...
+[PASS] Host header injection not detected
+
+[TEST] Testing for open redirect vulnerabilities...
+[PASS] No open redirect parameters detected
+
+[TEST] Checking for CSRF protection indicators...
+[INFO] No CSRF tokens detected (may not have forms or uses alternative protection)
+
+[TEST] Testing for basic SQL injection indicators...
+[PASS] No SQL error messages disclosed (input appears sanitized)
+
+=== Attack Vector Validation Complete ===
+
+
+=== Rate Limiting Assessment ===
+
+=== Rate Limiting Assessment ===
+Target: https://nginx.dev.foobar.support
+
+[TEST] Basic rate limiting test...
+Sending 20 requests in rapid succession...
+
+[*] Sequential rapid request test...
+
+Sequential test results:
+  Successful: 20/20
+  Rate limited (429): 0
+  Errors: 0
+  Duration: 2.702735000s
+  Requests/sec: 7.39
+[INFO] All requests succeeded - rate limiting may not be active or threshold not reached
+
+[TEST] Concurrent connection test...
+Launching 5 parallel requests...
+
+Concurrent test results:
+  Total responses:        5
+  Successful: 5
+  Rate limited (429): 0
+0
+  Server errors: 0
+0
+  Duration: .157091000s
+tests/test-rate-limiting.sh: line 102: [[: 0
+0: syntax error in expression (error token is "0")
+tests/test-rate-limiting.sh: line 104: 0
+0: syntax error in expression (error token is "0")
+[INFO] Concurrent requests handled - check if rate limiting is configured
+
+[TEST] Slow connection behavior...
+Testing with intentionally slow request (partial data)...
+[INFO] Slow request completed in 0.117769s
+
+[TEST] Checking for rate limit headers...
+[INFO] No rate limit headers detected (rate limiting may be at infrastructure level)
+
+=== Rate Limiting Assessment Summary ===
+
+tests/test-rate-limiting.sh: line 167: [[: 0
+0: syntax error in expression (error token is "0")
+[WARN] No rate limiting detected in basic tests
+Recommendations:
+  1. Verify Traefik/ingress rate limiting is configured
+  2. Check AWS WAF or NLB rate limiting settings
+  3. Consider implementing application-level rate limiting
+  4. Test with higher volume for production readiness
+
+=== Rate Limiting Assessment Complete ===
+

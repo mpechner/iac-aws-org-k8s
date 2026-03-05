@@ -85,6 +85,10 @@ resource "kubernetes_deployment_v1" "this" {
     template {
       metadata {
         labels = local.labels
+        annotations = {
+          # Force pod restart when nginx config changes
+          "checksum/config" = sha256(kubernetes_config_map_v1.nginx_config.data["default.conf"])
+        }
       }
 
       spec {

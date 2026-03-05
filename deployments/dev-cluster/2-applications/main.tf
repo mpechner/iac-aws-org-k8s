@@ -22,6 +22,12 @@ resource "kubernetes_namespace_v1" "nginx_sample" {
       environment = var.environment
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations,
+    ]
+  }
 }
 
 resource "kubernetes_namespace_v1" "cattle_system" {
@@ -30,6 +36,13 @@ resource "kubernetes_namespace_v1" "cattle_system" {
     labels = {
       app = "rancher"
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations,
+      metadata[0].labels["field.cattle.io/projectId"],
+    ]
   }
 }
 
@@ -256,6 +269,12 @@ resource "kubernetes_manifest" "nginx_ingressroute" {
           match    = "Host(`nginx.${var.route53_domain}`) && PathPrefix(`/`)"
           kind     = "Rule"
           priority = 100
+          middlewares = [
+            {
+              name      = "security-headers"
+              namespace = "traefik"
+            }
+          ]
           services = [
             {
               name           = "nginx-sample"

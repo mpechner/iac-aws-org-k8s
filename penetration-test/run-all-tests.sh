@@ -13,27 +13,29 @@ NC='\033[0m' # No Color
 
 # Test configuration
 TARGET_URL="${TARGET_URL:-https://nginx.dev.foobar.support}"
-REPORT_DIR="reports"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-REPORT_FILE="$REPORT_DIR/security-assessment-$TIMESTAMP.txt"
+RUN_DIR="penetration-run/$TIMESTAMP"
+REPORT_FILE="$RUN_DIR/security-assessment-$TIMESTAMP.txt"
 
 echo "=============================================="
-echo "SecureGuard Penetration Testing Suite"
+echo "FooBar Penetration Testing Suite"
 echo "Target: $TARGET_URL"
 echo "Started: $(date)"
+echo "Report will be saved to: $RUN_DIR/"
 echo "=============================================="
 echo ""
 
-# Create reports directory
-mkdir -p "$REPORT_DIR"
+# Create timestamped run directory
+mkdir -p "$RUN_DIR"
 
 # Initialize report
 {
-    echo "SecureGuard Penetration Testing Report"
+    echo "FooBar Penetration Testing Report"
     echo "======================================"
     echo "Target: $TARGET_URL"
     echo "Date: $(date)"
     echo "Report ID: PT-NGINX-$TIMESTAMP"
+    echo "Run Directory: $RUN_DIR"
     echo ""
 } > "$REPORT_FILE"
 

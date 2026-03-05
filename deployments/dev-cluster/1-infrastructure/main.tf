@@ -270,11 +270,7 @@ module "traefik" {
         loadBalancerClass = "service.k8s.aws/nlb"
       }
     }
-    # Global HTTP middleware - add security headers to all responses
-    # This uses the headers middleware type which is built into Traefik
-    additionalArguments = [
-      "--entrypoints.websecure.http.middlewares=traefik-security-headers@kubernetescrd"
-    ]
+    # No global middleware - security headers applied per-IngressRoute in 2-applications
   })]
 
   depends_on = [helm_release.aws_load_balancer_controller, null_resource.wait_for_aws_lb_controller]
