@@ -270,9 +270,56 @@ module "traefik" {
         loadBalancerClass = "service.k8s.aws/nlb"
       }
     }
+    # Global HTTP middleware - add security headers to all responses
+    # This uses the headers middleware type which is built into Traefik
+    additionalArguments = [
+      "--entrypoints.websecure.http.middlewares=traefik-security-headers@kubernetescrd"
+    ]
   })]
 
   depends_on = [helm_release.aws_load_balancer_controller, null_resource.wait_for_aws_lb_controller]
+}
+
+# Security Headers Middleware - adds OWASP recommended security headers to all responses
+resource "kubernetes_manifest" "traefik_security_headers" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "security-headers"
+      namespace = "traefik"
+    }
+    spec = {
+      headers = {
+        # Prevent clickjacking attacks
+        customFrameOptionsValue = "SAMEORIGIN"
+        # Prevent MIME sniffing
+        contentTypeNosniff = true
+        # Enable XSS protection for legacy browsers
+        browserXssFilter = true
+        # Referrer policy
+        referrerPolicy = "strict-origin-when-cross-origin"
+        # Add STS header (HSTS)
+        stsSeconds = 31536000
+        stsIncludeSubdomains = true
+        stsPreload = true
+        # Content Security Policy
+        contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
+        # Custom security headers
+        customRequestHeaders = {}
+        customResponseHeaders = {
+          "X-Frame-Options"           = "SAMEORIGIN"
+          "X-Content-Type-Options"    = "nosniff"
+          "X-XSS-Protection"          = "1; mode=block"
+          "Strict-Transport-Security"   = "max-age=31536000; includeSubDomains; preload"
+          "Referrer-Policy"           = "strict-origin-when-cross-origin"
+          "Permissions-Policy"          = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        }
+      }
+    }
+  }
+
+  depends_on = [module.traefik]
 }
 
 # Additional internal service for Traefik dashboard and RKE server access
