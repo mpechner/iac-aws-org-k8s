@@ -1,6 +1,19 @@
 # tf_take2
 Another attempt at creating AWS infrastructure
 
+**⚠️ AI-Generated Code Warning:** This project was written entirely using **agenic methods** — a combination of Claude (Haiku, Sonnet, Opus) and other AI assistants (Kimi, etc.). 
+
+**Critical Lesson:** Even when explicitly requesting security reviews and penetration testing, **basic security principles were missed** by the various agents. Security vulnerabilities including HTTP method exposure (TRACE), missing security headers, and server version disclosure were not caught during initial code generation or code review requests.
+
+**When writing AI-generated infrastructure code:**
+- [ ] **Explicit security passes are required** — AI agents do not inherently apply security best practices
+- [ ] **Penetration testing is essential** — Automated testing revealed issues missed by AI "code reviews"
+- [ ] **Defense in depth must be designed in** — Not automatically added by AI agents
+- [ ] **Additional human/AI review cycles are necessary** — First-pass AI code requires security-focused iteration
+- [ ] **Document accepted risks** — Some findings (like TRACE for internal dev tools) may be acceptable with proper documentation
+
+See [SECURITY-REVIEW.md](SECURITY-REVIEW.md) and [penetration-test/](penetration-test/) for detailed findings and remediation.
+
 **Note:** This repo is public. The **ECR** (`ecr/`) component is in progress and not tested.
 
 A few years ago I created a AWS eks env in this repo https://github.com/mpechner/terraform_play
