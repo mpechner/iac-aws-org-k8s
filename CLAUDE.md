@@ -79,3 +79,20 @@ Nodes require IAM permissions for Route53 access.
 - **Kubernetes Service CIDR**: 10.43.0.0/16
 - **Cluster DNS**: 10.43.0.10
 - **Network Plugin**: Flannel
+
+## Command Scope Rules (Critical)
+
+When I (Claude) provide a shell command like `git add`, `git commit`, `terraform apply`, etc.:
+
+- **"Run X now"** = Execute immediately on the current state
+- **"Then do Y"** = Wait for explicit confirmation before proceeding
+- **No explicit timing** = Ask "Should I run this now or are you saving it for later?"
+
+**Git commands specifically apply only to the current state:**
+- "git add all untracked files" = Add files that are untracked **at that moment**
+- "commit these changes" = Commit what is currently staged
+- Do **not** apply these commands to work created **after** the command was issued
+
+When the user says "git add X" or similar, I must clarify: "Should I run this now on current files, or wait for your go-ahead?"
+
+I should never assume a command applies to future work unless explicitly told "and also add any new files I create."
