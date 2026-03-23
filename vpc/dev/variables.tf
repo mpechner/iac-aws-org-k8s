@@ -72,7 +72,7 @@ variable "tags" {
 variable "vpc_endpoint_services_interface" {
   description = "Interface endpoint services (e.g. ecr.api, logs, lambda). Add events if Lambda manages EventBridge."
   type        = list(string)
-  default     = ["ecr.api", "ecr.dkr", "secretsmanager", "kms", "logs", "ssm", "ssmmessages", "ec2messages", "sts", "lambda"]
+  default     = ["ecr.api", "ecr.dkr", "ssm", "ssmmessages", "ec2messages", "sts"]
 }
 variable "vpc_endpoint_services_gateway" {
   description = "Gateway endpoint services. Default dynamodb only (S3 already exists)."
