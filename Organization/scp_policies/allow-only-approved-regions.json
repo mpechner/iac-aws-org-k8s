@@ -4,10 +4,30 @@
       {
         "Sid": "DenyRegionsNotAllowed",
         "Effect": "Deny",
-        "Action": "*",
+        "NotAction": [
+          "iam:*",
+          "sts:*",
+          "organizations:*",
+          "ram:*",
+          "account:*",
+          "budgets:*",
+          "ce:*",
+          "chatbot:*",
+          "cloudfront:*",
+          "globalaccelerator:*",
+          "health:*",
+          "route53:*",
+          "route53domains:*",
+          "route53resolver:*",
+          "shield:*",
+          "support:*",
+          "trustedadvisor:*",
+          "waf:*",
+          "wafv2:*"
+        ],
         "Resource": "*",
         "Condition": {
-          "StringNotEqualsIfExists": {
+          "StringNotEquals": {
             "aws:RequestedRegion": [
               "us-west-2",
               "us-west-1",
@@ -18,4 +38,3 @@
       }
     ]
   }
-  
