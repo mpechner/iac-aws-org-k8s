@@ -16,8 +16,9 @@ variable "subnet_id" {
 }
 
 variable "ami_id" {
-  description = "AMI ID for OpenVPN Access Server"
+  description = "AMI ID for OpenVPN Access Server. Leave empty to use the latest from AWS Marketplace."
   type        = string
+  default     = ""
 }
 
 variable "instance_type" {

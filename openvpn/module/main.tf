@@ -3,6 +3,16 @@
 
 data "aws_region" "current" {}
 
+data "aws_ami" "openvpn" {
+  most_recent = true
+  owners      = ["aws-marketplace"]
+
+  filter {
+    name   = "name"
+    values = ["OpenVPN Access Server Community Image*"]
+  }
+}
+
 data "aws_kms_key" "ebs_default" {
   key_id = "alias/aws/ebs"
 }
@@ -162,7 +172,7 @@ resource "aws_security_group" "openvpn" {
 
 # EC2 Instance for OpenVPN
 resource "aws_instance" "openvpn" {
-  ami                    = var.ami_id
+  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.openvpn.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.openvpn.id]

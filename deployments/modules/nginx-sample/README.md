@@ -27,7 +27,7 @@ Nginx Module:
 ## Usage
 
 ```hcl
-# In deployments/dev-cluster/main.tf
+# In deployments/rke-apps/main.tf
 
 # 1. Ingress module creates TLS cert and ingress
 module "ingress" {

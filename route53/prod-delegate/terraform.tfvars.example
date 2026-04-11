@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in real account IDs.
+# Find account IDs: AWS Console → Organizations → AWS accounts
+
+prod_account_id    = "000000000000"  # prod account
+network_account_id = "111111111111"  # network account (holds foobar.support zone)
+subdomain          = "MYSUBDOMAIN

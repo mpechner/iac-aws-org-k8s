@@ -1,9 +1,9 @@
-# OpenVPN dev environment variables
+# OpenVPN prod environment variables
 
 variable "environment" {
   description = "Environment name"
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
 variable "ami_id" {
@@ -60,9 +60,9 @@ variable "vpc_state_bucket" {
 }
 
 variable "vpc_state_key" {
-  description = "S3 object key for the VPC Terraform state"
+  description = "S3 object key for the prod VPC Terraform state"
   type        = string
-  default     = "vpc/dev"
+  default     = "vpc-prod"
 }
 
 variable "vpc_state_region" {
@@ -72,15 +72,15 @@ variable "vpc_state_region" {
 }
 
 variable "route53_zone_id" {
-  description = "Route53 hosted zone ID for the domain (e.g. dev.foobar.support). Leave empty to skip creating the VPN A record."
+  description = "Route53 hosted zone ID for prod.foobar.support. Get from route53/prod-delegate outputs after Step 1."
   type        = string
-  default     = "Z06437531SIUA7T3WCKTM"
+  default     = ""
 }
 
 variable "domain_name" {
-  description = "Domain name for the VPN A record; hostname is always 'vpn'. FQDN will be vpn.<domain_name> (e.g. vpn.dev.foobar.support)"
+  description = "Domain name for the VPN A record. FQDN will be vpn.<domain_name>"
   type        = string
-  default     = "dev.foobar.support"
+  default     = "prod.foobar.support"
 }
 
 variable "enable_tls_sync" {
@@ -90,19 +90,19 @@ variable "enable_tls_sync" {
 }
 
 variable "tls_secret_name" {
-  description = "AWS Secrets Manager secret name for TLS certificate (e.g., openvpn/dev)"
+  description = "AWS Secrets Manager secret name for TLS certificate"
   type        = string
-  default     = "openvpn/dev"
+  default     = "openvpn/prod"
 }
 
 variable "vpc_endpoint_sg_id" {
-  description = "Security group ID of VPC interface endpoints (for Secrets Manager, STS, etc.). If set, allows OpenVPN to reach endpoints on port 443."
+  description = "Security group ID of VPC interface endpoints. If set, allows OpenVPN to reach endpoints on port 443."
   type        = string
   default     = ""
 }
 
 variable "secret_recovery_window_days" {
-  description = "Secrets Manager recovery window in days. Use 0 for dev (immediate deletion on destroy), 30 for production."
+  description = "Secrets Manager recovery window in days. 0 = immediate deletion on destroy."
   type        = number
   default     = 0
 }

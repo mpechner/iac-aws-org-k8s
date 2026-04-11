@@ -75,6 +75,10 @@ tfplan
 .terraformrc
 terraform.rc
 
+# Claude session artifacts
+claude-issue-transcript.md
+.DS_Store
+
 #
 # python
 #

@@ -20,10 +20,10 @@ This document suggests refactoring and documentation improvements to make the re
 **Why:** A single diagram (VPC → VPN → RKE → Traefik → apps, with DNS/certs) makes the system understandable at a glance.
 
 **Options:**
-- **Mermaid** in a doc (e.g. `deployments/dev-cluster/ARCHITECTURE.md`): flow or C4-style component diagram; renders on GitHub.
-- **Separate image** in `docs/` and link from README and `deployments/dev-cluster/README.md`.
+- **Mermaid** in a doc (e.g. `deployments/rke-apps/ARCHITECTURE.md`): flow or C4-style component diagram; renders on GitHub.
+- **Separate image** in `docs/` and link from README and `deployments/rke-apps/README.md`.
 
-### 1.3 deployments/dev-cluster/ARCHITECTURE.md
+### 1.3 deployments/rke-apps/ARCHITECTURE.md
 **Why:** Explains the dev-cluster in one place: two-stage deploy, public NLB + external-DNS, Traefik CRD (traefik.io, allowCrossNamespace), Certificate + IngressRoute pattern, why not the applications-module Ingress for these apps.
 
 **Contents:** 1–2 pages: diagram reference, Stage 1 vs Stage 2, data flow (DNS → NLB → Traefik → backend), TLS (cert-manager, prod issuer), pointer to ADDING-NEW-APP.md.
@@ -31,7 +31,7 @@ This document suggests refactoring and documentation improvements to make the re
 ### 1.4 Runbook / operations one-pager
 **Why:** Shows you think about operations, not just deployment.
 
-**File:** `deployments/dev-cluster/OPERATIONS.md` (or add a section to README).
+**File:** `deployments/rke-apps/OPERATIONS.md` (or add a section to README).
 
 **Contents:** Common tasks: add new app (→ ADDING-NEW-APP.md), destroy order (2-apps → 1-infra), renew/force re-issue certs (delete secret), "Not secure" (prod issuer + hard refresh), 404 (allowCrossNamespace, traefik.io IngressRoute). Keep to one page.
 
@@ -49,7 +49,7 @@ This document suggests refactoring and documentation improvements to make the re
 ### 2.1 Reusable "app ingress" module
 **Why:** Right now adding an app = copy-paste Certificate + IngressRoute (see ADDING-NEW-APP.md). A small Terraform module would show DRY and module design.
 
-**Idea:** e.g. `deployments/dev-cluster/modules/app-ingress/`: inputs = hostname (or domain + subdomain), namespace, service name, port; outputs = none; module creates Certificate + IngressRoute in `traefik` namespace (traefik.io, websecure, priority 100). Then nginx, rancher, traefik-dashboard (and new apps) call this module. ADDING-NEW-APP.md becomes "add hostname to NLB, add one module block, apply".
+**Idea:** e.g. `deployments/rke-apps/modules/app-ingress/`: inputs = hostname (or domain + subdomain), namespace, service name, port; outputs = none; module creates Certificate + IngressRoute in `traefik` namespace (traefik.io, websecure, priority 100). Then nginx, rancher, traefik-dashboard (and new apps) call this module. ADDING-NEW-APP.md becomes "add hostname to NLB, add one module block, apply".
 
 ### 2.2 Variable validation
 **Why:** Demonstrates production-minded Terraform.
@@ -63,7 +63,7 @@ This document suggests refactoring and documentation improvements to make the re
 
 **Items:**
 - Root README Step 9: all three (nginx, traefik, rancher) public; remove "VPN required" for traefik/rancher.
-- `deployments/dev-cluster/README.md`: "Accessing Services" and "What this deploys" (Stage 2) — mention Rancher, and that nginx/traefik/rancher are all public; link ADDING-NEW-APP.md for adding apps.
+- `deployments/rke-apps/README.md`: "Accessing Services" and "What this deploys" (Stage 2) — mention Rancher, and that nginx/traefik/rancher are all public; link ADDING-NEW-APP.md for adding apps.
 
 ---
 
@@ -93,8 +93,8 @@ This document suggests refactoring and documentation improvements to make the re
 | Priority | Item | Effort |
 |----------|------|--------|
 | P0 | Root README: "What this demonstrates" + fix Step 9 (VPN note) | Small |
-| P0 | deployments/dev-cluster README: align with current setup, link ADDING-NEW-APP | Small |
-| P1 | deployments/dev-cluster/ARCHITECTURE.md (with optional Mermaid diagram) | Small–medium |
+| P0 | deployments/rke-apps README: align with current setup, link ADDING-NEW-APP | Small |
+| P1 | deployments/rke-apps/ARCHITECTURE.md (with optional Mermaid diagram) | Small–medium |
 | P1 | OPERATIONS.md or runbook section | Small |
 | P2 | Reusable app-ingress module | Medium |
 | P2 | Variable validation (route53_domain, letsencrypt_environment) | Small |

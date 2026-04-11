@@ -1,42 +1,52 @@
 #!/bin/bash
 # Generate OpenVPN SSH key pair and store in AWS Secrets Manager
 #
-# Secret name:  openvpn-ssh   (must match openvpn/devvpn/sshkey.tf)
-# Local copy:   ~/.ssh/openvpn-ssh-keypair.pem
-#
-# Run this BEFORE: openvpn/devvpn terraform apply
-#
 # Usage:
-#   ./scripts/create-openvpn-ssh-key.sh
+#   ./scripts/create-openvpn-ssh-key.sh <dev|prod> <account_id> [--force]
 #
-# Requires:
-#   AWS_ACCOUNT_ID env var  (or TF_VAR_account_id)
-#   export AWS_ACCOUNT_ID=<dev-account-id>
+# Secret names:
+#   dev  → openvpn-ssh       (matches openvpn/devvpn/sshkey.tf)
+#   prod → openvpn-ssh-prod  (matches openvpn/prodvpn/sshkey.tf)
 #
 # Idempotent: if the secret already exists and is a valid key, the script
 # prints a warning and exits without overwriting unless --force is passed.
 
 set -euo pipefail
 
-# ── Config ────────────────────────────────────────────────────────────────────
-SECRET_NAME="openvpn-ssh"       # must match sshkey.tf aws_secretsmanager_secret.openvpn_ssh_keypair.name
-REGION="us-west-2"              # must match provider region
-SSH_KEY_PATH="$HOME/.ssh/openvpn-ssh-keypair.pem"
-FORCE="${1:-}"
+# ── Args ──────────────────────────────────────────────────────────────────────
+ENV="${1:-}"
+AWS_ACCOUNT_ID="${2:-}"
+FORCE="${3:-}"
 
-# ── Resolve account ID ────────────────────────────────────────────────────────
-AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-${TF_VAR_account_id:-}}"
-if [ -z "$AWS_ACCOUNT_ID" ]; then
-  echo "ERROR: AWS_ACCOUNT_ID is not set."
-  echo "  export AWS_ACCOUNT_ID=<your-dev-account-id>"
+if [ -z "$ENV" ] || [ -z "$AWS_ACCOUNT_ID" ]; then
+  echo "Usage: $0 <dev|prod> <account_id> [--force]"
   exit 1
 fi
 
+case "$ENV" in
+  dev)
+    SECRET_NAME="openvpn-ssh"
+    SSH_KEY_PATH="$HOME/.ssh/openvpn-ssh-keypair.pem"
+    TF_DIR="openvpn/devvpn"
+    ;;
+  prod)
+    SECRET_NAME="openvpn-ssh-prod"
+    SSH_KEY_PATH="$HOME/.ssh/openvpn-ssh-keypair-prod.pem"
+    TF_DIR="openvpn/prodvpn"
+    ;;
+  *)
+    echo "ERROR: Unknown environment '$ENV'. Use 'dev' or 'prod'."
+    exit 1
+    ;;
+esac
+
+REGION="us-west-2"
+
 # ── Assume terraform-execute role ─────────────────────────────────────────────
-echo "Assuming terraform-execute role in account $AWS_ACCOUNT_ID..."
+echo "Assuming terraform-execute role in account $AWS_ACCOUNT_ID ($ENV)..."
 TEMP_CREDS=$(aws sts assume-role \
   --role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/terraform-execute" \
-  --role-session-name "create-openvpn-ssh-key" \
+  --role-session-name "create-openvpn-ssh-key-${ENV}" \
   --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
   --output text)
 
@@ -59,7 +69,7 @@ if [ -n "$EXISTING" ]; then
     else
       echo "INFO: Secret '$SECRET_NAME' already contains a valid RSA private key."
       echo "      To overwrite, pass --force:"
-      echo "        $0 --force"
+      echo "        $0 $ENV --force"
       echo ""
       echo "Fetching existing key to $SSH_KEY_PATH..."
       echo "$EXISTING_KEY" > "$SSH_KEY_PATH"
@@ -75,7 +85,7 @@ WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "Generating 4096-bit RSA key pair..."
-ssh-keygen -t rsa -b 4096 -N "" -f "$WORK_DIR/id_rsa" -C "openvpn-ssh" -q
+ssh-keygen -t rsa -b 4096 -N "" -f "$WORK_DIR/id_rsa" -C "openvpn-ssh-${ENV}" -q
 
 PRIVATE_KEY=$(cat "$WORK_DIR/id_rsa")
 PUBLIC_KEY=$(cat "$WORK_DIR/id_rsa.pub")
@@ -100,7 +110,7 @@ else
   aws secretsmanager create-secret \
     --name "$SECRET_NAME" \
     --region "$REGION" \
-    --description "OpenVPN server SSH key pair (managed by create-openvpn-ssh-key.sh)" \
+    --description "OpenVPN ${ENV} server SSH key pair (managed by create-openvpn-ssh-key.sh)" \
     --secret-string "$SECRET_VALUE"
 fi
 
@@ -112,7 +122,7 @@ echo ""
 echo "✓ Secret '$SECRET_NAME' written to Secrets Manager (region: $REGION)"
 echo "✓ Private key saved to $SSH_KEY_PATH (permissions 600)"
 echo ""
-echo "Next: run 'terraform apply' in openvpn/devvpn"
+echo "Next: run 'terraform apply' in $TF_DIR"
 echo "  Terraform will read the public key from the secret rather than generating a new one."
 echo "  To SSH to the OpenVPN server after deploy:"
 echo "    ssh -i $SSH_KEY_PATH openvpnas@<SERVER_IP>"

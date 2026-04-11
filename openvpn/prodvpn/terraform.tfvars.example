@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in real values.
+# Find account IDs: AWS Console → Organizations → AWS accounts
+# Get route53_zone_id from: terraform output -chdir=../../route53/prod-delegate zone_id
+
+account_id      = "000000000000"           # prod account ID
+route53_zone_id = ""                        # prod.foobar.support zone ID from route53/prod-delegate

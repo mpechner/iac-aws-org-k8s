@@ -9,9 +9,8 @@
 # Usage:
 #   ./scripts/create-rke-ssh-key.sh
 #
-# Requires:
-#   AWS_ACCOUNT_ID env var  (or TF_VAR_account_id)
-#   export AWS_ACCOUNT_ID=<dev-account-id>
+# Account ID is read from RKE-cluster/dev-cluster/ec2/terraform.tfvars (aws_account_id = "...").
+# Override by setting AWS_ACCOUNT_ID in the environment.
 #
 # Idempotent: if the secret already exists and is a valid key, the script
 # prints a warning and exits without overwriting unless --force is passed.
@@ -23,12 +22,17 @@ SECRET_NAME="rke-ssh"           # must match sshkey.tf aws_secretsmanager_secret
 REGION="us-west-2"              # must match provider region
 SSH_KEY_PATH="$HOME/.ssh/rke-key"
 FORCE="${1:-}"
+TFVARS="RKE-cluster/dev-cluster/ec2/terraform.tfvars"
 
 # ── Resolve account ID ────────────────────────────────────────────────────────
-AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-${TF_VAR_account_id:-}}"
-if [ -z "$AWS_ACCOUNT_ID" ]; then
-  echo "ERROR: AWS_ACCOUNT_ID is not set."
-  echo "  export AWS_ACCOUNT_ID=<your-dev-account-id>"
+# Prefer env var override; fall back to aws_account_id in the component's terraform.tfvars.
+if [ -z "${AWS_ACCOUNT_ID:-}" ]; then
+  if [ -f "$TFVARS" ]; then
+    AWS_ACCOUNT_ID=$(grep -E '^\s*aws_account_id\s*=' "$TFVARS" | head -1 | sed 's/.*=\s*"\([^"]*\)".*/\1/')
+  fi
+fi
+if [ -z "${AWS_ACCOUNT_ID:-}" ]; then
+  echo "ERROR: Could not determine account ID. Set aws_account_id in $TFVARS or export AWS_ACCOUNT_ID."
   exit 1
 fi
 

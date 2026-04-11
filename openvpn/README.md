@@ -128,24 +128,26 @@ Different VPCs use different DNS resolver IPs. The DNS server is always at `VPC_
 
 ```bash
 cd /usr/local/openvpn_as/scripts
+mkdir -p out && sudo chown openvpnas:openvpnas out
 
 # 1. Hostname (VPN Server → Network Settings) — use your VPN FQDN
 HOSTNAME="vpn.dev.foobar.support"
-./sacli --key "host.name" --value "$HOSTNAME" ConfigPut
+sudo ./sacli --key "host.name" --value "$HOSTNAME" ConfigPut
 
-# 2. Enable DNS and set servers (Access Controls → Internet Access and DNS)
-./sacli --key "vpn.client.routing.reroute_dns" --value "true" ConfigPut
+# 2. "custom" = use explicit DNS servers (not auto-detected); always proxy through AS
+sudo ./sacli --key "vpn.client.routing.reroute_dns" --value "custom" ConfigPut
+sudo ./sacli --key "dnsproxy.mode" --value "always" ConfigPut
 
-# 3. Primary DNS 10.8.0.2 (AWS VPC), Secondary 8.8.8.8
-# 4. Optional: DNS Resolution Zones — push domain so clients resolve e.g. nginx.dev.foobar.support via VPC DNS
-DNS_ZONE="foobar.support"   # optional; set to "" to skip
-echo 'push "dhcp-option DNS 10.8.0.2"'  > /tmp/dns.txt
-echo 'push "dhcp-option DNS 8.8.8.8"'   >> /tmp/dns.txt
-[ -n "$DNS_ZONE" ] && echo 'push "dhcp-option DOMAIN '"$DNS_ZONE"'"' >> /tmp/dns.txt
-./sacli --key "vpn.server.config_text" --value_file=/tmp/dns.txt ConfigPut
+# 3. Primary DNS (AWS VPC resolver), secondary (public fallback), domain suffix
+DNS_PRIMARY="10.8.0.2"
+DNS_SECONDARY="8.8.8.8"
+DNS_ZONE="foobar.support"
+sudo ./sacli --key "vpn.server.dhcp_option.dns.0" --value "$DNS_PRIMARY" ConfigPut
+sudo ./sacli --key "vpn.server.dhcp_option.dns.1" --value "$DNS_SECONDARY" ConfigPut
+sudo ./sacli --key "vpn.server.dhcp_option.adapter_domain_suffix" --value "$DNS_ZONE" ConfigPut
 
-# 5. Save and update running server
-./sacli start
+# 4. Save and update running server
+sudo ./sacli start
 ```
 
 **Note:** `vpn.server.config_text` replaces any existing custom server directives. If you have other directives (e.g. **Advanced → Additional OpenVPN Config**), run `./sacli ConfigQuery`, add the three `push` lines above to the exported config, then use `ConfigReplace` with that file instead of `ConfigPut`. For other VPCs use that VPC’s DNS resolver (e.g. `10.4.0.2` for 10.4.0.0/16).

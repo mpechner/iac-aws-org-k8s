@@ -29,6 +29,30 @@ kubectl get nodes
 
 ---
 
+### `create-openvpn-ssh-key.sh`
+Generate an OpenVPN SSH key pair and store it in AWS Secrets Manager. Run this **before** `terraform apply` in the OpenVPN directory.
+
+**Usage:**
+```bash
+./create-openvpn-ssh-key.sh <dev|prod> <account_id> [--force]
+```
+
+| Environment | Secret name | Local key |
+|-------------|------------|-----------|
+| `dev` | `openvpn-ssh` | `~/.ssh/openvpn-ssh-keypair.pem` |
+| `prod` | `openvpn-ssh-prod` | `~/.ssh/openvpn-ssh-keypair-prod.pem` |
+
+Idempotent — if the secret already exists and contains a valid key, it fetches the existing key without overwriting. Pass `--force` to regenerate.
+
+**Examples:**
+```bash
+./create-openvpn-ssh-key.sh dev <DEV_ACCOUNT_ID>
+./create-openvpn-ssh-key.sh prod <PROD_ACCOUNT_ID>
+./create-openvpn-ssh-key.sh prod <PROD_ACCOUNT_ID> --force
+```
+
+---
+
 ### `setup-vpn-tls.sh`
 Get a Let's Encrypt certificate for the OpenVPN hostname, set the Route53 A record (`vpn.<domain>` → server IP), and store the cert in AWS Secrets Manager for use in the OpenVPN Admin UI.
 
@@ -65,7 +89,7 @@ Retrieve and save the RKE SSH private key from AWS Secrets Manager.
 ---
 
 ### `delete-traefik-nlbs.sh`
-Delete Traefik NLBs and their target groups. **Run before `terraform destroy`** in `deployments/dev-cluster/2-applications` or `deployments/dev-cluster/1-infrastructure` so destroy does not hang and leave orphans. If you skip it, destroy will detect NLBs and fail with a copy-pastable command.
+Delete Traefik NLBs and their target groups. **Run before `terraform destroy`** in `deployments/rke-apps/2-applications` or `deployments/rke-apps/1-infrastructure` so destroy does not hang and leave orphans. If you skip it, destroy will detect NLBs and fail with a copy-pastable command.
 
 ```bash
 # From repo root (cluster account credentials or assume role)
@@ -177,15 +201,17 @@ More robust expansion using Ansible playbook.
 
 ```
 scripts/
-├── README.md                    # This file
-├── setup-k9s.sh                 # kubectl/k9s configuration
-├── setup-vpn-tls.sh             # OpenVPN: Let's Encrypt + Route53 + Secrets Manager
-├── get-rke-ssh-key.sh          # SSH key retrieval
-├── get-openvpn-ssh-key.sh      # OpenVPN SSH key retrieval
-├── delete-traefik-nlbs.sh      # Remove orphaned Traefik NLBs after destroy
-├── fix-cloud-provider.sh        # One-time cloud provider fix
-├── patch-provider-ids.sh        # One-time providerID fix
-└── expand-volumes/              # Volume management tools
+├── README.md                       # This file
+├── create-openvpn-ssh-key.sh       # OpenVPN SSH key → Secrets Manager (dev or prod)
+├── create-rke-ssh-key.sh           # RKE SSH key → Secrets Manager
+├── setup-k9s.sh                    # kubectl/k9s configuration
+├── setup-vpn-tls.sh                # OpenVPN: Let's Encrypt + Route53 + Secrets Manager
+├── get-rke-ssh-key.sh              # SSH key retrieval
+├── get-openvpn-ssh-key.sh          # OpenVPN SSH key retrieval
+├── delete-traefik-nlbs.sh          # Remove orphaned Traefik NLBs after destroy
+├── fix-cloud-provider.sh           # One-time cloud provider fix
+├── patch-provider-ids.sh           # One-time providerID fix
+└── expand-volumes/                 # Volume management tools
     ├── README.md               # Detailed volume expansion docs
     ├── verify-volumes.sh       # Check current volume sizes
     ├── expand-root-volumes.sh  # Bash expansion script

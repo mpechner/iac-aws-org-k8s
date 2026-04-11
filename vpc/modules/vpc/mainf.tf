@@ -256,19 +256,6 @@ locals {
   flow_log_group = var.flow_log_group_name != "" ? var.flow_log_group_name : "/aws/vpc-flow-log/${var.name}"
 }
 
-# SNS topic — receives all flow log alarms.
-# Destroyed with the VPC module since it is defined here.
-resource "aws_sns_topic" "flow_log_alerts" {
-  name = "${var.name}-flow-log-alerts"
-  tags = local.tags
-}
-
-resource "aws_sns_topic_subscription" "flow_log_alerts_email" {
-  count     = var.alert_email != "" ? 1 : 0
-  topic_arn = aws_sns_topic.flow_log_alerts.arn
-  protocol  = "email"
-  endpoint  = var.alert_email
-}
 
 # ── Metric filter 1: SSH from unexpected CIDRs ────────────────────────────────
 # Matches ACCEPT or REJECT traffic to port 22 from any source.
@@ -301,9 +288,6 @@ resource "aws_cloudwatch_metric_alarm" "ssh_traffic" {
   statistic           = "Sum"
   threshold           = 1
   treat_missing_data  = "notBreaching"
-
-  alarm_actions = [aws_sns_topic.flow_log_alerts.arn]
-  ok_actions    = [aws_sns_topic.flow_log_alerts.arn]
 
   tags = local.tags
 }
@@ -338,9 +322,6 @@ resource "aws_cloudwatch_metric_alarm" "rejected_traffic" {
   threshold           = 100
   treat_missing_data  = "notBreaching"
 
-  alarm_actions = [aws_sns_topic.flow_log_alerts.arn]
-  ok_actions    = [aws_sns_topic.flow_log_alerts.arn]
-
   tags = local.tags
 }
 
@@ -372,9 +353,6 @@ resource "aws_cloudwatch_metric_alarm" "large_transfer" {
   statistic           = "Sum"
   threshold           = 5
   treat_missing_data  = "notBreaching"
-
-  alarm_actions = [aws_sns_topic.flow_log_alerts.arn]
-  ok_actions    = [aws_sns_topic.flow_log_alerts.arn]
 
   tags = local.tags
 }

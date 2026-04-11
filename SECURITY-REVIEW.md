@@ -217,7 +217,7 @@ resource "aws_wafv2_web_acl" "internal_nlb" {
 ```
 
 **Files Modified:**
-- `deployments/dev-cluster/1-infrastructure/main.tf` — Added `block_trace_global` IngressRoute (Traefik-level attempt)
+- `deployments/rke-apps/1-infrastructure/main.tf` — Added `block_trace_global` IngressRoute (Traefik-level attempt)
 - `penetration-test/tests/test-info-disclosure.sh` — Test updated to accept HTTP 405 as success
 
 **Note:** Traefik IngressRoute approach (priority 0 route matching `Method(TRACE)`) was insufficient. Rancher's explicit host-based route takes precedence. AWS WAF is the correct production fix.
@@ -481,6 +481,60 @@ Fine for dev. For production, use `Always` on any security-sensitive container (
 
 ---
 
+### P-016 — `MEDIUM (dev) / HIGH (prod)` — OpenVPN Shares a Subnet With Other Workloads; No Dedicated NACL
+
+**Files:** `VPC/dev/main.tf`, `openvpn/module/main.tf`
+
+The OpenVPN Access Server is launched into one of the shared public subnets (`10.8.0.0/24`, `10.8.64.0/24`, `10.8.128.0/24`). Those subnets are also used by NAT gateways and any other public-facing resource. Because Network ACLs are a subnet-level control, a NACL tight enough for OpenVPN (UDP/1194, TCP/443, TCP/943, TCP/22 from `admin_cidr`) cannot be applied without breaking the other tenants of that subnet. The only defense today is the EC2 instance's security group.
+
+Security groups are stateful and per-ENI, which is good, but they are also the single layer of network enforcement in front of the VPN concentrator — the one box that, if compromised, provides attacker pivot into the entire VPC. A misconfigured or accidentally-widened SG rule (a common human-error class) has no second line of defense.
+
+**Fix for production:**
+1. Add a dedicated `/28` public subnet per AZ intended only for the OpenVPN ENI(s) — e.g., `10.8.1.0/28`, `10.8.65.0/28`, `10.8.129.0/28`. A `/28` gives five usable addresses, which is sufficient for an HA pair or a single instance with spare capacity.
+2. Attach a restrictive Network ACL to the OpenVPN subnet:
+   - **Ingress allow:** UDP/1194 from `0.0.0.0/0`, TCP/443 from `0.0.0.0/0`, TCP/943 from `admin_cidr`, TCP/22 from `admin_cidr`, ephemeral return traffic from the VPC CIDR.
+   - **Ingress deny:** everything else (implicit).
+   - **Egress allow:** return traffic on ephemeral ports, plus the specific outbound destinations the instance legitimately needs (Secrets Manager/KMS endpoints, Route53, package mirrors, S3 for the TLS sync).
+3. Keep the existing security group as the stateful inner layer. NACL + SG gives defense in depth: an SG mistake is contained by the NACL, and vice versa.
+
+**Dev environment impact:** `MEDIUM` — SG is currently the only enforcement layer, but the blast radius from an SG mistake in dev is limited to a single-user environment.
+
+**Production impact:** `HIGH` — the VPN is the perimeter; it deserves its own broadcast domain and its own subnet-level rule set. Carving out the subnet is cheap (no extra cost, ~20 lines of Terraform) and is a precondition for P-017.
+
+---
+
+### P-017 — `MEDIUM (dev) / HIGH (prod)` — No Egress Filtering; Consider AWS Network Firewall or a Third-Party Firewall
+
+**Files:** `VPC/dev/main.tf`, all module SGs
+
+Outbound traffic from the VPC is currently unrestricted. NAT gateways forward anything a node wants to send, and security group egress rules are mostly `0.0.0.0/0`. This means:
+- A compromised RKE node or pod can exfiltrate data to any host on the internet.
+- A compromised OpenVPN server can beacon to C2 infrastructure with no detection or block.
+- Supply-chain pulls (package mirrors, container registries, GitHub) cannot be distinguished from arbitrary attacker-controlled destinations in flow logs alone — the VPC sees them all as "egress to the internet."
+
+VPC Flow Log alarms (P-013) catch *volume* anomalies but not *destination* anomalies. A slow, low-volume exfiltration to a novel host will not trip the thresholds.
+
+**Options, in rough order of cost/complexity:**
+
+| Option | Cost | What it gets you | Tradeoffs |
+|---|---|---|---|
+| **VPC Endpoints for AWS services** (already partially in place per commit `09394a8`) | Low — endpoint hourly + data | Removes AWS API traffic from the NAT path entirely; SGs on endpoints enforce which principals can reach which services | Only covers AWS; doesn't stop egress to non-AWS destinations |
+| **Restrictive egress SG rules + explicit allow-list of CIDRs** | Free | Blocks most egress without new infrastructure | Allow-list is brittle — package mirror IPs change constantly; hard to maintain |
+| **AWS Network Firewall** | ~$0.395/hr per endpoint + data processing | Stateful L3/L4 + domain-name (SNI/HTTP Host) filtering via Suricata rules; central policy management; integrates with AWS Firewall Manager | ~$290/mo baseline per AZ; operationally simpler than self-managed; cannot do deep TLS inspection without MITM cert |
+| **Third-party NGFW (Palo Alto VM-Series, Fortinet, Check Point)** | EC2 + licensing, typically $500–$2000+/mo | Full L7 inspection, URL categories, TLS decryption, IPS signatures, threat intel feeds | Most expensive; requires HA design, licensing management, separate operator skill set |
+| **Squid/proxy pattern on a hardened egress host** | EC2 + minimal ops | Domain-name allow-listing for HTTP/HTTPS; cheap | Doesn't cover non-HTTP protocols; another box to maintain |
+
+**Recommendation for this project:**
+- **Dev:** Accept current state. Continue expanding VPC endpoint coverage where it pays off for NAT bandwidth savings (already the path taken in commit `09394a8`).
+- **Production:** AWS Network Firewall is the right first step. It gives you domain-based egress filtering (critical for catching DNS-over-HTTPS exfiltration and C2 beacons to unknown domains), it's managed by AWS so it fits the same IaC pattern as the rest of the stack, and the ~$290/mo per AZ cost is justified for the blast-radius reduction. Reserve third-party NGFW for workloads that actually need L7 IPS or TLS inspection — most VPCs do not.
+- Pair any egress firewall with **explicit egress SG rules** on the OpenVPN and RKE node SGs. Defense in depth: firewall catches what the SG misses, and SG catches what the firewall misses.
+
+**Dev environment impact:** `MEDIUM` — unrestricted egress is a risk but blast radius is contained by the single-operator, short-lived nature.
+
+**Production impact:** `HIGH` — no egress control is a gap in any modern security architecture. Required for most compliance frameworks (PCI-DSS 1.3, NIST 800-53 SC-7, SOC 2 CC6.6).
+
+---
+
 ## Part 3 — Developer Tools & Unsafe Patterns
 
 **Date:** 2026-02-28  
@@ -602,7 +656,7 @@ The cert-publisher CronJob image is tagged `:latest`. Between CronJob runs the i
 
 ### DEV-012 — `HIGH` — Docker Hub Used as Default Container Registry
 
-**Files:** `RKE-cluster/modules/server/templates/ansible-playbook.yml.tftpl`, `RKE-cluster/modules/agent/templates/ansible-playbook.yml.tftpl`, `deployments/dev-cluster/1-infrastructure/main.tf`, `deployments/modules/nginx-sample/main.tf`
+**Files:** `RKE-cluster/modules/server/templates/ansible-playbook.yml.tftpl`, `RKE-cluster/modules/agent/templates/ansible-playbook.yml.tftpl`, `deployments/rke-apps/1-infrastructure/main.tf`, `deployments/modules/nginx-sample/main.tf`
 
 RKE2 was not configured with `system-default-registry`, causing kubelet to pull the `pause` sandbox image from `index.docker.io`. Docker Hub applies aggressive rate limits (100 pulls/6 hr for unauthenticated, 200 for free accounts) on fresh nodes with no cached images. This caused etcd to never bootstrap because the pod sandbox container could never start. The Helm charts for Traefik, cert-manager, and external-dns similarly defaulted to Docker Hub (`docker.io/traefik`), `quay.io/jetstack`, and `registry.k8s.io` respectively.
 
@@ -684,6 +738,8 @@ This is substantial work and outside the scope of this learning-reference repo.
 | P-013 | ~~MEDIUM~~ RESOLVED | Monitoring | SSH, reject spike, large-transfer alarms + SNS added to VPC module (2026-02-28) |
 | P-014 | LOW (prod) | K8s | Use `imagePullPolicy: Always` on cert publisher for prod |
 | P-015 | ~~LOW~~ RESOLVED | Ops | `|| true` removed from provisioner (2026-03-03) |
+| P-016 | MEDIUM (dev) / HIGH (prod) | Network | OpenVPN shares a subnet with other workloads; dedicated subnet + NACL needed for subnet-level defense in depth |
+| P-017 | MEDIUM (dev) / HIGH (prod) | Network | No egress filtering; evaluate AWS Network Firewall or a third-party NGFW for prod |
 | DEV-001 | CRITICAL | Supply Chain | `upgrade: dist` on every provision — uncontrolled package upgrades on running nodes |
 | DEV-002 | CRITICAL | Supply Chain | RKE2 installer checksum fallback is self-referential — provides no protection |
 | DEV-003 | CRITICAL | Supply Chain | IRSA webhook deployed from `?ref=master` + `\|\| true` masking failure |
@@ -721,4 +777,6 @@ This is substantial work and outside the scope of this learning-reference repo.
 14. P-010 — Remove `allow_overwrite` from Route53 record
 15. P-014 — Set `imagePullPolicy: Always` on cert-publisher CronJob
 16. SEC-007 — Set `secret_recovery_window_days = 30` in prod tfvars
-17. **SEC-010 — Implement AWS WAF WebACL on internal NLB to block TRACE/OPTIONS methods**
+17. P-016 — Carve out dedicated `/28` OpenVPN subnet per AZ with restrictive NACL; keep SG as inner layer
+18. P-017 — Deploy AWS Network Firewall (or equivalent) for egress filtering; pair with explicit egress SG rules
+19. **SEC-010 — Implement AWS WAF WebACL on internal NLB to block TRACE/OPTIONS methods**

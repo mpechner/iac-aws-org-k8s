@@ -100,12 +100,6 @@ variable "vpc_endpoint_services_gateway" {
   default     = ["dynamodb"]
 }
 
-variable "alert_email" {
-  description = "Email address to receive VPC flow log alerts (SSH attempts, large transfers). Leave empty to create the SNS topic without an email subscription."
-  type        = string
-  default     = ""
-}
-
 variable "flow_log_group_name" {
   description = "Override the CloudWatch log group name for VPC flow logs. Defaults to the name the terraform-aws-vpc module creates: /aws/vpc-flow-log/{vpc_id}."
   type        = string
