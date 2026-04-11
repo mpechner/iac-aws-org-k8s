@@ -1,0 +1,20 @@
+# Required — get from your prod AWS account
+account_id = "123456789012"
+
+# Required — Route53 hosted zone ID for dev.foobar.support
+route53_zone_id = "Z0XXXXXXXXXXXXXXXXX"
+
+# Required — email for Let's Encrypt notifications
+letsencrypt_email = "ops@example.com"
+
+letsencrypt_environment = "prod"
+
+# Defaults (override if needed)
+# aws_region              = "us-west-2"
+# environment             = "dev"
+# cluster_name            = "dev-eks"
+# vpc_name = "dev"
+# route53_domain          = "dev.foobar.support"
+# karpenter_state_bucket  = "mikey-com-terraformstate"
+# karpenter_state_key     = "eks-dev/3-karpenter"
+# karpenter_state_region  = "us-east-1"

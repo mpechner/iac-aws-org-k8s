@@ -1,0 +1,24 @@
+# Required — get from your prod AWS account
+account_id = "123456789012"
+
+# Required — email for Let's Encrypt notifications
+letsencrypt_email = "ops@example.com"
+
+letsencrypt_environment = "prod"
+
+# Grafana admin password (stored in k8s secret; change after first login)
+grafana_admin_password = "changeme"
+
+# OpenVPN TLS cert publisher (optional — leave image empty to skip CronJob)
+# openvpn_cert_enabled    = true
+# openvpn_cert_hosted_zone_id           = "Z0XXXXXXXXXXXXXXXXX"
+# openvpn_cert_letsencrypt_email        = "ops@example.com"
+# openvpn_cert_publisher_image          = "123456789012.dkr.ecr.us-west-2.amazonaws.com/openvpn-cert-publisher:latest"
+# openvpn_cert_publisher_irsa_role_arn  = "arn:aws:iam::123456789012:role/dev-eks-irsa-openvpn-cert-publisher"
+#   (get irsa_role_arn from: terraform output -chdir=../../../EKS-cluster/eks-cluster/3-karpenter)
+
+# Defaults (override if needed)
+# aws_region              = "us-west-2"
+# environment             = "dev"
+# cluster_name            = "dev-eks"
+# route53_domain          = "dev.foobar.support"

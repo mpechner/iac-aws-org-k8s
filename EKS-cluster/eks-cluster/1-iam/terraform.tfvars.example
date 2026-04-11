@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars and fill in real values.
+# Find account IDs: AWS Console → Organizations → AWS accounts
+
+account_id = "000000000000"  # dev account ID
