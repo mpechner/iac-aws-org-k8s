@@ -115,6 +115,9 @@ resource "kubernetes_manifest" "openvpn_cert_publisher_sa" {
     metadata = {
       name      = "openvpn-cert-publisher"
       namespace = "openvpn-certs"
+      annotations = var.irsa_role_arn != "" ? {
+        "eks.amazonaws.com/role-arn" = var.irsa_role_arn
+      } : null
     }
   }
 

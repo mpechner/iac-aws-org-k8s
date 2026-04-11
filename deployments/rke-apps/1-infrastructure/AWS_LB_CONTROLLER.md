@@ -39,7 +39,7 @@ The AWS Load Balancer Controller:
 ## Deployment
 
 ```bash
-cd deployments/dev-cluster/1-infrastructure
+cd deployments/rke-apps/1-infrastructure
 
 # Initialize new resources
 terraform init

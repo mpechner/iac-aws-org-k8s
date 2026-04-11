@@ -420,6 +420,111 @@ module "nginx_sample" {
   depends_on = [module.applications]
 }
 
+# Security Headers Middleware - adds OWASP recommended security headers to all responses
+resource "kubernetes_manifest" "traefik_security_headers" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "security-headers"
+      namespace = "traefik"
+    }
+    spec = {
+      headers = {
+        # Prevent clickjacking attacks
+        customFrameOptionsValue = "SAMEORIGIN"
+        # Prevent MIME sniffing
+        contentTypeNosniff = true
+        # Enable XSS protection for legacy browsers
+        browserXssFilter = true
+        # Referrer policy
+        referrerPolicy = "strict-origin-when-cross-origin"
+        # Add STS header (HSTS)
+        stsSeconds = 31536000
+        stsIncludeSubdomains = true
+        stsPreload = true
+        # Content Security Policy
+        contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';"
+        # Custom security headers
+        customRequestHeaders = {}
+        customResponseHeaders = {
+          "X-Frame-Options"           = "SAMEORIGIN"
+          "X-Content-Type-Options"    = "nosniff"
+          "X-XSS-Protection"          = "1; mode=block"
+          "Strict-Transport-Security"   = "max-age=31536000; includeSubDomains; preload"
+          "Referrer-Policy"           = "strict-origin-when-cross-origin"
+          "Permissions-Policy"          = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        }
+      }
+    }
+  }
+
+  depends_on = [module.applications]
+}
+
+# Middleware to return 405 Method Not Allowed for TRACE
+resource "kubernetes_manifest" "block_trace_middleware" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "block-trace"
+      namespace = "traefik"
+    }
+    spec = {
+      # Return 405 for any request
+      errors = {
+        status  = ["405"]
+        service = {
+          name = "error@internal"
+          kind = "TraefikService"
+        }
+        query = "/405"
+      }
+    }
+  }
+
+  depends_on = [module.applications]
+}
+
+# Block TRACE method globally using a catch-all IngressRoute
+resource "kubernetes_manifest" "block_trace_global" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "block-trace-global"
+      namespace = "traefik"
+    }
+    spec = {
+      entryPoints = ["web", "websecure"]
+      routes = [
+        {
+          # Match TRACE method for all hosts
+          match    = "Method(`TRACE`)"
+          kind     = "Rule"
+          priority = 0
+          # Use custom response headers to signal method not allowed
+          middlewares = [
+            {
+              name      = "block-trace"
+              namespace = "traefik"
+            }
+          ]
+          services = [
+            {
+              name = "noop@internal"
+              kind = "TraefikService"
+            }
+          ]
+        }
+      ]
+    }
+  }
+
+  depends_on = [module.applications, kubernetes_manifest.block_trace_middleware]
+}
+
 # ------------------------------------------------------------------------------
 # DESTROY: Before running terraform destroy here, delete Traefik NLBs first:
 #   ./scripts/delete-traefik-nlbs.sh   (from repo root; set AWS_REGION; set AWS_ASSUME_ROLE_ARN to terraform-execute if not in cluster account)
@@ -465,6 +570,9 @@ resource "null_resource" "pre_destroy_delete_traefik_nlbs" {
   depends_on = [
     kubernetes_namespace_v1.nginx_sample,
     kubernetes_namespace_v1.cattle_system,
+    kubernetes_manifest.traefik_security_headers,
+    kubernetes_manifest.block_trace_middleware,
+    kubernetes_manifest.block_trace_global,
     kubernetes_manifest.traefik_dashboard_cert,
     kubernetes_manifest.traefik_dashboard_ingressroute,
     helm_release.rancher,

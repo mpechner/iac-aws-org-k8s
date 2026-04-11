@@ -92,7 +92,7 @@ Add your hostname to the comma-separated list:
 Then apply Stage 1:
 
 ```bash
-cd deployments/dev-cluster/1-infrastructure
+cd deployments/rke-apps/1-infrastructure
 terraform apply -auto-approve
 ```
 
@@ -186,7 +186,7 @@ resource "kubernetes_manifest" "myapp_ingressroute" {
 Apply Stage 2:
 
 ```bash
-cd deployments/dev-cluster/2-applications
+cd deployments/rke-apps/2-applications
 terraform apply -auto-approve
 ```
 

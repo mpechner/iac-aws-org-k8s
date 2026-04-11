@@ -1,19 +1,20 @@
-AWS_ACCOUNT_ID    ?= $(shell aws sts get-caller-identity --query Account --output text)
-AWS_ASSUME_ROLE   ?= arn:aws:iam::$(AWS_ACCOUNT_ID):role/terraform-execute
-ECR_ACCOUNT       := $(AWS_ACCOUNT_ID)
+# ECR repo lives in the dev account; pass the dev account ID on the make line:
+#   ECR_ACCOUNT_ID=<dev-account-id> make -C scripts
+ECR_ACCOUNT_ID    ?= $(error ECR_ACCOUNT_ID is required: ECR_ACCOUNT_ID=<dev-account-id> make -C scripts)
+AWS_ASSUME_ROLE   ?= arn:aws:iam::$(ECR_ACCOUNT_ID):role/terraform-execute
 ECR_REGION        := us-west-2
 ECR_REPO          := openvpn-dev
 IMAGE_TAG         := latest
 TIMESTAMP_TAG     := $(shell date +%Y%m%d-%H%M%S)
 
-ECR_REGISTRY      := $(ECR_ACCOUNT).dkr.ecr.$(ECR_REGION).amazonaws.com
+ECR_REGISTRY      := $(ECR_ACCOUNT_ID).dkr.ecr.$(ECR_REGION).amazonaws.com
 IMAGE_URI_LATEST  := $(ECR_REGISTRY)/$(ECR_REPO):$(IMAGE_TAG)
 IMAGE_URI_TIMESTAMP := $(ECR_REGISTRY)/$(ECR_REPO):$(TIMESTAMP_TAG)
 PUBLISHER_DIR     := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../../../modules/tls-issue/publisher
 
 .PHONY: build push login all tag
 
-all: build tag push
+all: login build tag push
 
 login:
 	@CREDS=$$(aws sts assume-role --role-arn "$(AWS_ASSUME_ROLE)" --role-session-name "ecr-push" \

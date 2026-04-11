@@ -98,7 +98,7 @@ resource "aws_iam_role_policy" "rke_agent_route53" {
 
 ### ✅ Terraform Configuration - COMPLETE
 
-**File**: `deployments/dev-cluster/terraform.tfvars`
+**File**: `deployments/rke-apps/terraform.tfvars`
 ```hcl
 vpc_id                  = "vpc-XXXXXXXXXX"  # Get from VPC deployment
 route53_zone_id         = "Z06437531SIUA7T3WCKTM"
@@ -234,7 +234,7 @@ kubectl get namespaces
 ### Step 1: Initialize Terraform
 
 ```bash
-cd /Users/mpechner/dev/tf_take2/deployments/dev-cluster
+cd /Users/mpechner/dev/tf_take2/deployments/rke-apps
 
 terraform init
 ```
@@ -722,7 +722,7 @@ Once staging certificates work successfully, migrate to production:
 ### Step 1: Update Configuration
 
 ```bash
-cd /Users/mpechner/dev/tf_take2/deployments/dev-cluster
+cd /Users/mpechner/dev/tf_take2/deployments/rke-apps
 
 # Edit terraform.tfvars
 # Change: letsencrypt_environment = "staging"

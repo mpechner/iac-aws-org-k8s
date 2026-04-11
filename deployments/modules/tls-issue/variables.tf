@@ -42,3 +42,9 @@ variable "publisher_image" {
   description = "Container image for the cert publisher CronJob (e.g. <account>.dkr.ecr.<region>.amazonaws.com/openvpn-dev:latest). Leave empty to skip CronJob creation."
 }
 
+variable "irsa_role_arn" {
+  type        = string
+  default     = ""
+  description = "IRSA role ARN to annotate the publisher ServiceAccount (EKS only). Leave empty for RKE2/node-role auth."
+}
+

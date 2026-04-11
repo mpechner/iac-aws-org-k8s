@@ -1,6 +1,6 @@
 # OpenVPN TLS cert via cert-manager + Secrets Manager
 
-**Prefer Terraform:** This module is called from **2-applications** in `openvpn-cert.tf` (source `../../modules/tls-issue`). Set `openvpn_cert_enabled`, `openvpn_cert_hosted_zone_id`, `openvpn_cert_letsencrypt_email`, and `openvpn_cert_publisher_image` in terraform.tfvars and apply from `deployments/dev-cluster/2-applications`. Terraform creates the IAM user, access key, and Kubernetes credentials Secret automatically.
+**Prefer Terraform:** This module is called from **2-applications** in `openvpn-cert.tf` (source `../../modules/tls-issue`). Set `openvpn_cert_enabled`, `openvpn_cert_hosted_zone_id`, `openvpn_cert_letsencrypt_email`, and `openvpn_cert_publisher_image` in terraform.tfvars and apply from `deployments/rke-apps/2-applications`. Terraform creates the IAM user, access key, and Kubernetes credentials Secret automatically.
 
 This directory holds **standalone YAML and scripts** for reference or for use without Terraform (e.g. `kubectl apply -f ...`). The name `tls-issue` reflects its purpose: issuing and publishing TLS certificates for OpenVPN.
 

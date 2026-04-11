@@ -61,7 +61,7 @@ openvpn_cert_hosted_zone_id     = "Z06437531SIUA7T3WCKTM"   # Route53 zone for r
 openvpn_cert_letsencrypt_email  = "you@example.com"
 openvpn_cert_publisher_image    = "REDACTED_ACCOUNT_ID.dkr.ecr.us-west-2.amazonaws.com/openvpn-dev:latest"
 # Secret path (openvpn/dev) and IAM user are derived automatically.
-# Build the image first: make -C scripts
+# Build the image first: ECR_ACCOUNT_ID=<dev-account-id> make -C scripts
 ```
 
 ## Deployment
@@ -112,8 +112,8 @@ kubectl get certificate -n openvpn-certs -w
 ### Step 3 — Build and push the publisher image
 
 ```bash
-# From this directory (deployments/dev-cluster/2-applications)
-make -C scripts
+# From this directory (deployments/rke-apps/2-applications)
+ECR_ACCOUNT_ID=<dev-account-id> make -C scripts
 ```
 
 The script logs in to ECR, builds for `linux/amd64`, pushes, and prints the image URI.
@@ -227,7 +227,7 @@ kubectl logs -n openvpn-certs -l job-name=<job-name>
 # Common causes:
 #  - IAM policy not applied or wrong secret ARN (verify rke-nodes-role has Secrets Manager permissions)
 #  - openvpn_cert_publisher_image not set (CronJob won't be created)
-#  - ECR image does not exist (run `make -C scripts` to build and push)
+#  - ECR image does not exist (run `ECR_ACCOUNT_ID=<dev-account-id> make -C scripts` to build and push)
 ```
 
 ### Ingress not working

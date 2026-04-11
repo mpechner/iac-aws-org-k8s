@@ -6,7 +6,7 @@ The ingress deployment was refactored from a single workspace with `deploy.sh` s
 
 ### Old Structure (❌ Deprecated)
 ```
-deployments/dev-cluster/
+deployments/rke-apps/
 ├── main.tf              # Everything in one file
 ├── deploy.sh            # Required 2-stage script with -target flags
 └── modules/ingress/     # Monolithic module
@@ -14,7 +14,7 @@ deployments/dev-cluster/
 
 ### New Structure (✅ Current)
 ```
-deployments/dev-cluster/
+deployments/rke-apps/
 ├── 1-infrastructure/    # Stage 1: Helm charts
 │   ├── main.tf
 │   └── terraform.tfvars
@@ -32,7 +32,7 @@ deployments/dev-cluster/
 
 1. Destroy old deployment:
 ```bash
-cd deployments/dev-cluster
+cd deployments/rke-apps
 terraform destroy
 ```
 

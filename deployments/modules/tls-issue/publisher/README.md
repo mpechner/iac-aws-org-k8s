@@ -45,7 +45,7 @@ in `route53_hosted_zone_ids` (in `RKE-cluster/dev-cluster/ec2/terraform.tfvars`)
 ## Build and push the publisher image
 
 ```bash
-# From deployments/dev-cluster/2-applications
+# From deployments/rke-apps/2-applications
 make -C scripts
 ```
 
