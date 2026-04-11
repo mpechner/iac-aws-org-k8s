@@ -23,6 +23,12 @@ variable "kubeconfig_path" {
   default = "~/.kube/config"
 }
 
+variable "kubeconfig_context" {
+  type        = string
+  default     = "dev-rke2"
+  description = "Kubeconfig context name for the RKE2 cluster. Pinned so the provider never reads current-context (which silently flips when you run aws eks update-kubeconfig). Matches the name written by scripts/setup-k9s.sh."
+}
+
 variable "route53_domain" {
   type        = string
   description = "Route53 hosted zone domain name"

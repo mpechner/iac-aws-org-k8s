@@ -406,7 +406,7 @@ resource "null_resource" "wait_for_aws_lb_controller" {
 
 # ------------------------------------------------------------------------------
 # DESTROY: Before running terraform destroy here, delete Traefik NLBs first:
-#   ./scripts/delete-traefik-nlbs.sh   (from repo root; set AWS_REGION; set AWS_ASSUME_ROLE_ARN to terraform-execute if not in cluster account)
+#   bash ../../../scripts/delete-traefik-nlbs.sh   (from this directory; set AWS_REGION; set AWS_ASSUME_ROLE_ARN to terraform-execute if not in cluster account)
 # Then run terraform destroy. If you skip that, destroy will check for NLBs and fail with instructions if any exist.
 # ------------------------------------------------------------------------------
 # Run first on destroy: check for Traefik NLBs and print warning + instruction to run script if any exist.

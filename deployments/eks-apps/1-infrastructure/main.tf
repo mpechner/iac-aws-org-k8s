@@ -245,7 +245,7 @@ resource "null_resource" "wait_for_nlbs" {
 
 # ------------------------------------------------------------------------------
 # DESTROY helpers
-# Run scripts/delete-traefik-nlbs.sh before terraform destroy.
+# Run ../../../scripts/delete-traefik-nlbs.sh (from this directory) before terraform destroy.
 # ------------------------------------------------------------------------------
 resource "null_resource" "pre_destroy_nlb_check" {
   triggers = {
@@ -270,8 +270,8 @@ resource "null_resource" "pre_destroy_nlb_check" {
         --output text 2>/dev/null || echo "0")
       if [ "$COUNT" != "0" ]; then
         echo ""
-        echo "*** WARNING: $COUNT Traefik NLB(s) still exist. Run scripts/delete-traefik-nlbs.sh first. ***"
-        echo "  AWS_ASSUME_ROLE_ARN=\"$ROLE_ARN\" ./scripts/delete-traefik-nlbs.sh"
+        echo "*** WARNING: $COUNT Traefik NLB(s) still exist. Run ../../../scripts/delete-traefik-nlbs.sh first. ***"
+        echo "  AWS_ASSUME_ROLE_ARN=\"$ROLE_ARN\" bash ../../../scripts/delete-traefik-nlbs.sh"
         echo "Then run terraform destroy again."
         echo ""
         exit 1
@@ -306,8 +306,8 @@ resource "null_resource" "cleanup_nlbs_on_destroy" {
         --query 'length(LoadBalancers[?starts_with(LoadBalancerName, `k8s-traefik`)])' \
         --output text 2>/dev/null || echo "0")
       if [ "$COUNT" != "0" ]; then
-        echo "*** WARNING: $COUNT Traefik NLB(s) still exist. Run scripts/delete-traefik-nlbs.sh first. ***"
-        echo "  AWS_ASSUME_ROLE_ARN=\"$ROLE_ARN\" ./scripts/delete-traefik-nlbs.sh"
+        echo "*** WARNING: $COUNT Traefik NLB(s) still exist. Run ../../../scripts/delete-traefik-nlbs.sh first. ***"
+        echo "  AWS_ASSUME_ROLE_ARN=\"$ROLE_ARN\" bash ../../../scripts/delete-traefik-nlbs.sh"
         exit 1
       fi
       echo "Stripping LoadBalancer Service finalizers..."

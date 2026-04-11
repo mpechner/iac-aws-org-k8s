@@ -42,3 +42,16 @@ output "bootstrap_node_group_name" {
   description = "Name of the Karpenter bootstrap managed node group"
   value       = aws_eks_node_group.karpenter_bootstrap.node_group_name
 }
+
+output "kubeconfig_instructions" {
+  description = "Instructions for setting up kubectl access to this EKS cluster"
+  value       = <<-EOT
+    To configure kubectl access, run:
+
+    aws eks update-kubeconfig --region ${var.region} --name ${var.cluster_name} --alias ${var.cluster_name} --assume-role-arn arn:aws:iam::${var.account_id}:role/terraform-execute
+
+    Then (for your own shell only — the eks-apps terraform stack does not depend on current-context):
+    kubectl config use-context ${var.cluster_name}
+    kubectl get nodes
+  EOT
+}

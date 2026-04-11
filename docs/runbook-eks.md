@@ -17,8 +17,8 @@ Update the `backend "s3" { }` block in each file before running `terraform init`
 | `EKS-cluster/eks-cluster/1-iam/providers.tf` | `eks-dev/1-iam` |
 | `EKS-cluster/eks-cluster/2-cluster/providers.tf` | `eks-dev/2-cluster` |
 | `EKS-cluster/eks-cluster/3-karpenter/providers.tf` | `eks-dev/3-karpenter` |
-| `deployments/eks-apps/1-infrastructure/terraform.tf` | `ingress_dev/1-infrastructure` |
-| `deployments/eks-apps/2-applications/terraform.tf` | `ingress_dev/2-applications` |
+| `deployments/eks-apps/1-infrastructure/terraform.tf` | `eks_apps_dev/1-infrastructure` |
+| `deployments/eks-apps/2-applications/terraform.tf` | `eks_apps_dev/2-applications` |
 
 ---
 
@@ -81,6 +81,8 @@ kubectl get nodes
 ```
 
 All 3 bootstrap nodes should show `Ready`. If nodes are not ready, addons will be stuck in `CREATING` — wait for nodes before proceeding.
+
+> **Heads up — kube context side effect.** `aws eks update-kubeconfig` silently sets your `~/.kube/config` current-context to `dev-eks`. Neither terraform stack depends on current-context (the `eks-apps` stack uses exec-based auth from remote state; the `rke-apps` stack pins `config_context` in its providers), so this is harmless for `terraform apply` in either runbook. But it does mean bare `kubectl` commands will hit the EKS cluster until you explicitly switch contexts. If you later move to the RKE2 runbook and want kubectl to talk to RKE2, run `kubectl config use-context dev-rke2` for your own shell — the RKE2 terraform apply will find its cluster either way.
 
 ---
 
@@ -170,23 +172,55 @@ kubectl get cronjob -n openvpn-certs
 
 ## Teardown
 
-Destroy in reverse order. **Before** running `terraform destroy` in either apps layer, delete the Traefik NLBs or destroy will hang:
+Destroy in reverse order. The sequence matters: apps layers come down first (so Traefik stops recreating NLBs), then Karpenter-managed nodes are drained **while Karpenter is still alive**, then the Karpenter / cluster / IAM stacks.
 
-```bash
-AWS_ASSUME_ROLE_ARN="arn:aws:iam::364082771643:role/terraform-execute" ./scripts/delete-traefik-nlbs.sh
-```
-
-Then destroy:
+### Step 1 — Destroy the applications layer
 
 ```bash
 cd deployments/eks-apps/2-applications && terraform destroy
-cd ../1-infrastructure && terraform destroy
-cd ../../EKS-cluster/eks-cluster/3-karpenter && terraform destroy
-cd ../2-cluster && terraform destroy
-cd ../1-iam && terraform destroy
 ```
 
-If you skip the NLB cleanup, `terraform destroy` will detect existing NLBs and fail with a copy-pastable command to run the script.
+### Step 2 — Destroy the platform infrastructure layer
+
+```bash
+cd ../1-infrastructure && terraform destroy
+```
+
+This will fail the first time with a pre-destroy guard that detects the two Traefik NLBs still exist. The error message prints the exact command to run to delete them — copy/paste it, then re-run `terraform destroy`.
+
+> **Why it fails:** AWS Load Balancer Controller owns the NLBs as long as the backing `Service type=LoadBalancer` objects exist. The guard runs before the Helm releases are torn down, so it fires, prints the cleanup command, and aborts. Running the command removes the NLBs; the re-run then tears down the services and the rest of the layer cleanly.
+
+### Step 3 — Drain Karpenter-managed nodes
+
+All the application deployments are gone now, so it's safe to drain Karpenter's fleet before we destroy Karpenter itself.
+
+Karpenter owns the `NodePool → NodeClaim → EC2` reconcile loop. If you destroy the Karpenter helm release or the EKS control plane before Karpenter has terminated its own instances, the EC2s become orphans — nothing is left to terminate them, and they keep running (and billing) indefinitely.
+
+Do this in a **new terminal window** so your current one keeps its terraform-execute role for the remaining destroys:
+
+1. Set the temporary AWS credentials from the AWS access portal (same way you did to run k9s).
+2. `cd` to the top of the repo.
+3. Run the drain script — no role argument needed, you're already using your own credentials:
+
+   ```bash
+   ./scripts/drain-karpenter-nodes.sh <cluster_name>
+   ```
+
+The script deletes all `NodePool` and `NodeClaim` resources, then polls AWS (scoped to the `karpenter.k8s.aws/cluster=<cluster_name>` tag) until every Karpenter-launched instance has terminated, or times out after 10 minutes. On timeout it prints the stuck instance IDs and a force-terminate command as a last resort.
+
+Prerequisite: your `kubectl` context must point at the cluster you're draining (`aws eks update-kubeconfig --name <cluster_name> --region us-west-2`).
+
+### Step 4 — Destroy Karpenter, the cluster, and IAM
+
+Continue in the same terminal you used for the drain (you're at the repo root):
+
+```bash
+cd ./EKS-cluster/eks-cluster/3-karpenter && terraform destroy
+cd ../2-cluster                          && terraform destroy
+cd ../1-iam                              && terraform destroy
+```
+
+If you skipped the Karpenter drain, `3-karpenter` destroy will appear to succeed but you will find orphaned EC2 instances in the AWS console tagged `karpenter.sh/nodepool` — terminate them manually and fix your teardown sequence next time.
 
 **PVC cleanup is automatic.** Two destroy-time `null_resource` provisioners handle PersistentVolumeClaim cleanup so that EBS volumes are deprovisioned in an orderly way before the CSI driver goes away:
 

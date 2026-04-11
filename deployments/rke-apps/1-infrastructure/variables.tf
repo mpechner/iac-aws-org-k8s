@@ -23,6 +23,12 @@ variable "kubeconfig_path" {
   default = "~/.kube/config"
 }
 
+variable "kubeconfig_context" {
+  type        = string
+  default     = "dev-rke2"
+  description = "Kubeconfig context name for the RKE2 cluster. Pinned so the provider never reads current-context (which silently flips when you run aws eks update-kubeconfig). Matches the name written by scripts/setup-k9s.sh."
+}
+
 variable "vpc_id" {
   type        = string
   description = "VPC ID for subnet lookups (ignored if vpc_name is set)"

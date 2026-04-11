@@ -3,7 +3,7 @@ terraform {
   backend "s3" {
     bucket         = "mikey-com-terraformstate"
     dynamodb_table = "terraform-state"
-    key            = "ingress_dev/2-applications"
+    key            = "eks_apps_dev/2-applications"
     region         = "us-east-1"
   }
 

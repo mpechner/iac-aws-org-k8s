@@ -85,6 +85,18 @@ kubectl get nodes
 
 ### Step 4: Platform Infrastructure
 
+> **Preflight: cluster connectivity smoke test.** The `rke-apps` stack's `kubernetes` and `helm` providers pin `config_context = var.kubeconfig_context` (default `dev-rke2`) in `providers.tf`, so `terraform apply` looks up the RKE2 context by name and ignores whatever your kubectl current-context happens to be. You do **not** need to run `kubectl config use-context` before applying — the stack will find the right cluster even if your current-context is still pointing at EKS from a previous session.
+>
+> What the stack **does** require: the `dev-rke2` context in `~/.kube/config` must point at a live RKE2 server. If you rebuilt the cluster since the last apply, the stored server IP in that context is stale.
+>
+> Verify connectivity without disturbing your current-context:
+>
+> ```bash
+> kubectl --context dev-rke2 get nodes
+> ```
+>
+> If that returns nodes, proceed to apply. If it fails with connection refused or DNS errors, stop and re-run `./scripts/setup-k9s.sh <rke-server-ip>` from Step 3 to refresh the `dev-rke2` context against the current server IP. If you renamed the context via `var.kubeconfig_context` in tfvars, substitute that name in the `--context` flag above.
+
 ```bash
 cd deployments/rke-apps/1-infrastructure
 terraform init
@@ -130,10 +142,10 @@ All three web apps are on the same public NLB; no VPN required once DNS has sync
 
 Destroy in reverse order: 2-applications first, then 1-infrastructure.
 
-**Before** running `terraform destroy` in either layer, delete the Traefik NLBs:
+**Before** running `terraform destroy` in either layer, delete the Traefik NLBs (run from inside the `1-infrastructure` or `2-applications` directory):
 
 ```bash
-AWS_ASSUME_ROLE_ARN="arn:aws:iam::ACCOUNT_ID:role/terraform-execute" ./scripts/delete-traefik-nlbs.sh
+AWS_ASSUME_ROLE_ARN="arn:aws:iam::ACCOUNT_ID:role/terraform-execute" bash ../../../scripts/delete-traefik-nlbs.sh
 ```
 
 Then destroy:
