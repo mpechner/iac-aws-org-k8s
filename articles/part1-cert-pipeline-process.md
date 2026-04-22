@@ -28,7 +28,7 @@ The pipeline has three stages that are cleanly decoupled from each other:
 
 Each stage knows nothing about the others. The Kubernetes side doesn't know or care what consumes the secret. The external service doesn't know or care how the cert was issued. Secrets Manager is the contract boundary.
 
-![Architecture diagram: three-stage certificate pipeline — Issue (cert-manager in K8s), Publish (CronJob to Secrets Manager), Consume (external services pull and install)](cert-pipeline-architecture.png)
+![Architecture diagram: three-stage certificate pipeline — Issue (cert-manager in K8s), Publish (CronJob to Secrets Manager), Consume (external services pull and install)](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/cert-pipeline-architecture.png)
 
 **Why this decoupling matters:**
 
@@ -222,7 +222,7 @@ I implemented both fixes:
 1. **SG rule** letting the OpenVPN SG reach the endpoint SG on 443 (keeps traffic on the AWS network).
 2. **Explicit `--endpoint-url`** in the sync script as a fallback (bypasses VPC endpoint DNS entirely, goes over public internet with TLS + SigV4).
 
-![Network diagram: VPC endpoint DNS gotcha — public subnet services resolve to private endpoint IPs, causing timeouts.](vpc-endpoint-dns-gotcha.png)
+![Network diagram: VPC endpoint DNS gotcha — public subnet services resolve to private endpoint IPs, causing timeouts.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/vpc-endpoint-dns-gotcha.png)
 
 **Gotcha #4: VPC endpoints with private DNS.** This bites any service in a public subnet calling any AWS API for which you have an interface endpoint — not just Secrets Manager.
 
