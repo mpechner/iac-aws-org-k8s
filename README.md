@@ -42,5 +42,15 @@ Both clusters run in the dev account and share VPC + OpenVPN. Deploy one or the 
 | [docs/runbook-common.md](docs/runbook-common.md) | Shared infrastructure: VPC, OpenVPN, ECR, org bootstrap |
 | [docs/runbook-rke2.md](docs/runbook-rke2.md) | RKE2 cluster on EC2 (us-west-2) |
 | [docs/runbook-eks.md](docs/runbook-eks.md) | EKS cluster with Karpenter (us-west-2) |
+| [docs/cost-estimate.md](docs/cost-estimate.md) | Hourly cost estimate for the RKE2 and EKS labs |
 
 Each cluster runbook assumes `runbook-common.md` is complete.
+
+**Rough hourly cost** (us-west-2 on-demand, common layer included):
+
+| Lab  | Idle baseline             | With workload               |
+|------|---------------------------|-----------------------------|
+| RKE2 | **~$0.76/hr** (~$554/mo)  | same (fixed node count)     |
+| EKS  | **~$0.52/hr** (~$380/mo)  | ~$0.55–0.90/hr (Karpenter)  |
+
+See [docs/cost-estimate.md](docs/cost-estimate.md) for the full breakdown and cost-reduction wins.
