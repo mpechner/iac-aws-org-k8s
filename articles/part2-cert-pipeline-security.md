@@ -1,24 +1,19 @@
-# Securing the Pipeline: IAM, KMS, and the Gotchas Nobody Warns You About
+# Securing the Pipeline: IAM, KMS, and the Gotchas That Aren't Obvious
 
 **Part 2: Who can read your private keys, and what to do about it**
 
-*This is Part 2 of a two-part series. [Part 1](part1-cert-pipeline-process.md) covers building the pipeline: using cert-manager to issue certs, a CronJob to publish them to Secrets Manager, and a consumer to install them on external services.*
+*This is Part 2 of a two-part series. Part 1 covers building the pipeline — using cert-manager to issue certs, a CronJob to publish them to Secrets Manager, and a consumer to install them on external services.*
 
----
+*Last verified: April 2026.*
 
-## A Quick Recap
 
-In Part 1, we built a certificate pipeline that uses cert-manager to issue Let's Encrypt certs for services *outside* the Kubernetes cluster. A CronJob publisher pushes the cert to AWS Secrets Manager, and a consumer script on the external service (OpenVPN, in our example) pulls and installs it during a maintenance window.
+## What We Built — and What It Leaves Open
 
-It works. It's automated. But the security story has gaps.
+Imagine someone on your team deploys a new pod. Nothing sketchy — a standard image, standard manifests. Thirty seconds later, that pod can read the private keys for your OpenVPN server, overwrite your cert-manager secrets, and add a rogue record to your apex DNS zone.
 
-The publisher runs with the EC2 **node's IAM instance profile**, which means every pod on every node can write to Secrets Manager and modify Route53 DNS records. The secret is encrypted with the default AWS-managed KMS key, which any account principal with `kms:Decrypt` can unlock. And if your EC2 instances still run IMDSv1, an SSRF vulnerability in any application on the host becomes instant credential theft.
+This is the cert pipeline from Part 1 before any security hardening. The publisher runs with the EC2 **node's IAM instance profile**, so every pod on every node inherits its permissions. The secret is encrypted with the default AWS-managed KMS key, which any account principal with `kms:Decrypt` can unlock. And IMDSv1 on the nodes turns any SSRF into credential theft.
 
-This article is about closing those gaps.
-
-> **Live example:** The full implementation is at [github.com/mpechner/tf_take2](https://github.com/mpechner/tf_take2). Security findings are documented in [`SECURITY-REVIEW.md`](https://github.com/mpechner/tf_take2/blob/main/SECURITY-REVIEW.md).
-
----
+This article closes those gaps.
 
 ## The Elephant in the Room: Who Can Read Your Private Keys?
 
@@ -35,63 +30,71 @@ This secret contains a TLS private key. Anyone who can read it can impersonate y
 
 Nobody else — not your CI/CD pipeline, not your developers, not other services — should have access. This is a private key, not a config value.
 
+> **Live example:** The full implementation is at [github.com/mpechner/iac-aws-org-k8s](https://github.com/mpechner/iac-aws-org-k8s). Security findings are documented in [`SECURITY-REVIEW.md`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/SECURITY-REVIEW.md).
+
 ### Secrets Manager Resource Policy
 
-Beyond IAM policies on the roles, attach a **resource policy** directly to the secret. This acts as a second gate — even if someone's IAM policy grants `GetSecretValue` on `*`, the resource policy can deny them:
+Beyond IAM policies on the roles, attach a **resource policy** directly to the secret. It's a single policy with three statements — two allows and one deny — that together form a second gate: even if someone's IAM policy grants `GetSecretValue` on `*`, the resource policy can still block them.
+
+First, allow the publisher (the Kubernetes node role) to read and write:
 
 ```json
 {
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowPublisher",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT:role/rke-nodes-role"
-      },
-      "Action": [
-        "secretsmanager:PutSecretValue",
-        "secretsmanager:CreateSecret",
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowConsumer",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT:role/dev-openvpn-role"
-      },
-      "Action": [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyEverythingElse",
-      "Effect": "Deny",
-      "Principal": "*",
-      "Action": "secretsmanager:*",
-      "Resource": "*",
-      "Condition": {
-        "StringNotEquals": {
-          "aws:PrincipalArn": [
-            "arn:aws:iam::ACCOUNT:role/rke-nodes-role",
-            "arn:aws:iam::ACCOUNT:role/dev-openvpn-role",
-            "arn:aws:iam::ACCOUNT:role/terraform-execute"
-          ]
-        }
-      }
-    }
-  ]
+  "Sid": "AllowPublisher",
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "arn:aws:iam::ACCOUNT:role/rke-nodes-role"
+  },
+  "Action": [
+    "secretsmanager:PutSecretValue",
+    "secretsmanager:CreateSecret",
+    "secretsmanager:GetSecretValue",
+    "secretsmanager:DescribeSecret"
+  ],
+  "Resource": "*"
 }
 ```
 
-The explicit `Deny` with `StringNotEquals` ensures that even account admins can't accidentally read the secret without first removing the resource policy. In production, you'd add a `Condition` for the Terraform role limiting it to `DescribeSecret` only.
+Second, allow the consumer (the OpenVPN instance role) to read only — no write actions:
 
----
+```json
+{
+  "Sid": "AllowConsumer",
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "arn:aws:iam::ACCOUNT:role/dev-openvpn-role"
+  },
+  "Action": [
+    "secretsmanager:GetSecretValue",
+    "secretsmanager:DescribeSecret"
+  ],
+  "Resource": "*"
+}
+```
+
+Third — and this is the part that actually gates access — explicitly deny everything else, using a `StringNotEquals` condition on `aws:PrincipalArn`:
+
+```json
+{
+  "Sid": "DenyEverythingElse",
+  "Effect": "Deny",
+  "Principal": "*",
+  "Action": "secretsmanager:*",
+  "Resource": "*",
+  "Condition": {
+    "StringNotEquals": {
+      "aws:PrincipalArn": [
+        "arn:aws:iam::ACCOUNT:role/rke-nodes-role",
+        "arn:aws:iam::ACCOUNT:role/dev-openvpn-role",
+        "arn:aws:iam::ACCOUNT:role/terraform-execute"
+      ]
+    }
+  }
+}
+```
+
+The explicit `Deny` ensures that even account admins can't accidentally read the secret without first removing the resource policy. In production, you'd add a `Condition` for the Terraform role limiting it to `DescribeSecret` only.
+
 
 ## KMS Encryption: Default Key vs Customer-Managed Key
 
@@ -99,7 +102,7 @@ The explicit `Deny` with `StringNotEquals` ensures that even account admins can'
 
 My implementation currently uses the default AWS-managed key `aws/secretsmanager`. The publisher supports a CMK via an optional `KMS_KEY_ID` environment variable, but I haven't set it — so the secret is encrypted with the default key.
 
-This is a documented, accepted risk for the dev environment — see [P-002 in SECURITY-REVIEW.md](https://github.com/mpechner/tf_take2/blob/main/SECURITY-REVIEW.md) for the full assessment.
+This is a documented, accepted risk for the dev environment — see [P-002 in SECURITY-REVIEW.md](https://github.com/mpechner/iac-aws-org-k8s/blob/main/SECURITY-REVIEW.md) for the full assessment.
 
 The mitigation: the consumer's `kms:Decrypt` permission is locked down with a `kms:ViaService` condition, so the role can't use it for anything other than Secrets Manager:
 
@@ -117,7 +120,7 @@ The mitigation: the consumer's `kms:Decrypt` permission is locked down with a `k
 }
 ```
 
-> **In the repo:** This conditional KMS policy is in [`openvpn/module/main.tf`](https://github.com/mpechner/tf_take2/blob/main/openvpn/module/main.tf) (`aws_iam_role_policy.openvpn_secrets`). The OpenVPN module accepts a `kms_key_arn` variable to upgrade to a CMK when you're ready.
+> **In the repo:** This conditional KMS policy is in [`openvpn/module/main.tf`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/openvpn/module/main.tf) (`aws_iam_role_policy.openvpn_secrets`). The OpenVPN module accepts a `kms_key_arn` variable to upgrade to a CMK when you're ready.
 
 For a dev environment behind a VPN with a small team, this is acceptable.
 
@@ -163,7 +166,6 @@ Now even if someone has `secretsmanager:GetSecretValue` permission, they can't d
 
 **Gotcha: KMS envelope encryption.** Secrets Manager *always* uses KMS — even with the default key. Without `kms:Decrypt`, `GetSecretValue` calls fail with an access denied error even though the Secrets Manager permission is correct. This catches people every time. The `kms:ViaService` condition ensures the permission is only usable through Secrets Manager, not for decrypting arbitrary data.
 
----
 
 ## CloudTrail: Know Who Accessed What
 
@@ -176,7 +178,6 @@ alarm:  when count > 0 from unexpected principal ARNs
 
 If someone outside your publisher and consumer roles is reading the secret, your permissions are too broad — or someone is poking around.
 
----
 
 ## The Node Role Problem — Why IRSA Matters
 
@@ -184,10 +185,11 @@ The pipeline in Part 1 uses the **EC2 node instance profile** for both cert-mana
 
 ### What IRSA Gives You
 
-**IRSA (IAM Roles for Service Accounts)** binds an IAM role to a specific Kubernetes ServiceAccount. Only pods using that ServiceAccount get the role's permissions. Everything else on the node gets nothing.
+**IRSA (IAM Roles for Service Accounts)** binds an IAM role to a specific Kubernetes ServiceAccount. Only pods using that ServiceAccount get the role's permissions. Everything else on the node gets nothing. It takes three Terraform resources.
+
+First, create an IAM role whose trust policy accepts tokens from the cluster's OIDC provider — and critically, pins the trust to a single ServiceAccount via a `StringEquals` condition on the `:sub` claim. This is the mechanism that makes IRSA work:
 
 ```hcl
-# 1. Create an IAM role that trusts the cluster's OIDC provider
 resource "aws_iam_role" "cert_publisher" {
   name = "cert-publisher-irsa"
 
@@ -207,8 +209,11 @@ resource "aws_iam_role" "cert_publisher" {
     }]
   })
 }
+```
 
-# 2. Attach only the permissions the publisher needs
+Second, attach a role policy scoped to exactly what the publisher needs. Note the `Resource` ARN is narrowed to `secret:openvpn/*` — not `*` — so a compromise of the publisher role can't touch other services' certs:
+
+```hcl
 resource "aws_iam_role_policy" "cert_publisher" {
   role = aws_iam_role.cert_publisher.id
   policy = jsonencode({
@@ -223,8 +228,11 @@ resource "aws_iam_role_policy" "cert_publisher" {
     ]
   })
 }
+```
 
-# 3. Annotate the Kubernetes ServiceAccount
+Third, annotate the Kubernetes ServiceAccount with the IAM role ARN. The `eks.amazonaws.com/role-arn` annotation is the hand-off between the Kubernetes and AWS worlds — pods using this ServiceAccount will have the role's credentials injected automatically:
+
+```hcl
 resource "kubernetes_manifest" "cert_publisher_sa" {
   manifest = {
     apiVersion = "v1"
@@ -256,13 +264,12 @@ On RKE2, you have to:
 3. Configure the API server's `--service-account-issuer` and `--service-account-jwks-uri` flags
 4. Wire the IAM trust policies to your self-hosted provider
 
-It's doable — there's a scaffolded [IRSA module](https://github.com/mpechner/tf_take2/tree/main/modules/irsa) in the repo — but it's a significant amount of plumbing for a project meant as a learning reference. The node-role approach keeps the cert pipeline understandable without requiring readers to also understand OIDC federation. See [P-003 in SECURITY-REVIEW.md](https://github.com/mpechner/tf_take2/blob/main/SECURITY-REVIEW.md) for the production assessment.
+It's doable — there's a scaffolded [IRSA module](https://github.com/mpechner/iac-aws-org-k8s/tree/main/modules/irsa) in the repo — but it's a significant amount of plumbing for a project meant as a learning reference. The node-role approach keeps the cert pipeline understandable without requiring readers to also understand OIDC federation. See [P-003 in SECURITY-REVIEW.md](https://github.com/mpechner/iac-aws-org-k8s/blob/main/SECURITY-REVIEW.md) for the production assessment.
 
 ### Bottom Line
 
 The node-role approach in Part 1 is fine for development. For production, IRSA is not a "nice to have" — it's table stakes. The blast radius of a compromised pod goes from "can rewrite TLS certs and DNS records" to "can do nothing beyond its own namespace."
 
----
 
 ## IMDSv2: Not Optional
 
@@ -272,7 +279,7 @@ Your EC2 instances **must** enforce IMDSv2 (`http_tokens = "required"`). This is
 
 **IMDSv2 mitigates this** by requiring a PUT request to obtain a session token first. SSRF attacks typically can't forge PUT requests with custom headers — they're limited to GET or simple POST. This single change breaks the most common cloud credential theft vector.
 
-> **In the repo:** The OpenVPN instance enforces IMDSv2 in [`openvpn/module/main.tf`](https://github.com/mpechner/tf_take2/blob/main/openvpn/module/main.tf):
+> **In the repo:** The OpenVPN instance enforces IMDSv2 in [`openvpn/module/main.tf`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/openvpn/module/main.tf):
 
 ```hcl
 metadata_options {
@@ -286,7 +293,6 @@ metadata_options {
 
 **If you're still running IMDSv1, fix that before worrying about certificate automation.** The credential exposure from IMDSv1 is a far bigger risk than anything else in this article.
 
----
 
 ## Private Keys and Temp Files
 
@@ -321,20 +327,18 @@ vars:
 
 This is safe because Ansible's temp files don't contain secret material — they're execution scaffolding that's removed after each task. Don't confuse this with the cert handling above.
 
----
 
 ## Security Gotchas Summary
 
-| # | Issue | Risk | Fix | Ref |
-|---|-------|------|-----|-----|
-| 1 | Node role too broad | Every pod can write certs + modify DNS | IRSA: scope AWS perms to publisher SA | P-003 |
-| 2 | Default KMS key | Any `kms:Decrypt` principal can read secrets | Customer-managed KMS key with explicit policy | P-002 |
-| 3 | No resource policy | IAM-only access control on secrets | Attach Secrets Manager resource policy with explicit Deny | — |
-| 4 | IMDSv1 enabled | SSRF = instant credential theft | `http_tokens = "required"` on all instances | — |
-| 5 | Certs in `/tmp` | World-readable private keys | Secure root-owned temp dir with trap cleanup | — |
-| 6 | No CloudTrail alarm | Silent unauthorized access | Monitor `GetSecretValue` for unexpected principals | — |
+| # | Issue | Risk | Fix |
+|---|-------|------|-----|
+| 1 | Node role too broad | Every pod can write certs + modify DNS | IRSA: scope AWS perms to publisher SA (see P-003) |
+| 2 | Default KMS key | Any `kms:Decrypt` principal can read secrets | Customer-managed KMS key with explicit policy (see P-002) |
+| 3 | No resource policy | IAM-only access control on secrets | Attach Secrets Manager resource policy with explicit Deny |
+| 4 | IMDSv1 enabled | SSRF = instant credential theft | `http_tokens = "required"` on all instances |
+| 5 | Certs in `/tmp` | World-readable private keys | Secure root-owned temp dir with trap cleanup |
+| 6 | No CloudTrail alarm | Silent unauthorized access | Monitor `GetSecretValue` for unexpected principals |
 
----
 
 ## Extending the Security Model
 
@@ -355,7 +359,6 @@ The 6-hour CronJob + 30-minute cron is simple but has latency. A more sophistica
 
 The consumer should report metrics — time since last successful sync, days until cert expiry — and trigger alarms when the pipeline is stuck.
 
----
 
 ## Conclusion
 
@@ -373,11 +376,9 @@ No single layer is sufficient. Together, they give you defense in depth for a se
 
 The real complexity isn't in the code — it's in the permission layering (KMS envelope encryption on top of Secrets Manager permissions), the operational details (secure temp files, IMDSv2 hop limits), and understanding what "good enough for dev" versus "required for production" actually means. Those are the gotchas this article is meant to save you from.
 
----
 
-*The complete implementation is open source at [github.com/mpechner/tf_take2](https://github.com/mpechner/tf_take2). Security findings are in [`SECURITY-REVIEW.md`](https://github.com/mpechner/tf_take2/blob/main/SECURITY-REVIEW.md). The IRSA module scaffold is at [`modules/irsa/`](https://github.com/mpechner/tf_take2/tree/main/modules/irsa). The IAM policies for the publisher and consumer are in [`RKE-cluster/modules/ec2/main.tf`](https://github.com/mpechner/tf_take2/blob/main/RKE-cluster/modules/ec2/main.tf) and [`openvpn/module/main.tf`](https://github.com/mpechner/tf_take2/blob/main/openvpn/module/main.tf) respectively.*
+*The complete implementation is open source at [github.com/mpechner/iac-aws-org-k8s](https://github.com/mpechner/iac-aws-org-k8s). Security findings are in [`SECURITY-REVIEW.md`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/SECURITY-REVIEW.md). The IRSA module scaffold is at [`modules/irsa/`](https://github.com/mpechner/iac-aws-org-k8s/tree/main/modules/irsa). The IAM policies for the publisher and consumer are in [`RKE-cluster/modules/ec2/main.tf`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/RKE-cluster/modules/ec2/main.tf) and [`openvpn/module/main.tf`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/openvpn/module/main.tf) respectively.*
 
----
 
 ## A Note on How This Was Written
 
@@ -389,4 +390,4 @@ The gotchas were real. The "access denied" from missing `kms:Decrypt` on envelop
 
 If you're using AI to build infrastructure, one concrete takeaway: **review the security model separately from the functional code.** The first draft will likely work. It will also likely be too permissive. That's where the human judgment still matters most.
 
-The full project is public at [github.com/mpechner/tf_take2](https://github.com/mpechner/tf_take2). The repo's [`SECURITY-REVIEW.md`](https://github.com/mpechner/tf_take2/blob/main/SECURITY-REVIEW.md) documents every security finding, and the commit history shows the tightening process in real time.
+The full project is public at [github.com/mpechner/iac-aws-org-k8s](https://github.com/mpechner/iac-aws-org-k8s). The repo's [`SECURITY-REVIEW.md`](https://github.com/mpechner/iac-aws-org-k8s/blob/main/SECURITY-REVIEW.md) documents every security finding, and the commit history shows the tightening process in real time.
