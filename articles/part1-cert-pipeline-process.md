@@ -47,11 +47,7 @@ My OpenVPN Access Server runs on an EC2 instance in a public subnet. It had a st
 
 Here's the specific setup:
 
-| Component | Details |
-|-----------|---------|
-| Stack | RKE2 + cert-manager + Route53 + Secrets Manager |
-| External service | OpenVPN Access Server (EC2, public subnet) |
-| Cadence | Publish every 6h; consume every 30 min in midnight–3am window |
+![Setup: RKE2 + cert-manager + Route53 + Secrets Manager; OpenVPN Access Server on EC2; publish every 6h, consume every 30 min in the midnight–3am window.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part1-table-setup.png)
 
 
 ## The Kubernetes Side — Issue and Publish
@@ -270,24 +266,12 @@ The `fingerprint_sha256` is the idempotency key — the publisher skips writes a
 
 ## Gotchas Summary
 
-| # | Issue | Symptom | Fix |
-|---|-------|---------|-----|
-| 1 | cert-manager IAM | DNS-01 challenge fails | Use node instance profile, scope Route53 to your zone |
-| 2 | `renewBefore` too short | Cert expires before retries succeed | `renewBefore: 720h` (30-day buffer) |
-| 3 | Docker Hub rate limits | Publisher pod `ImagePullBackOff` | Use `public.ecr.aws` base images |
-| 4 | VPC endpoint private DNS | AWS CLI calls time out from public subnet | Add SG rule + use `--endpoint-url` fallback |
-| 5 | `sacli` vs file copy | Cert not recognized after replacement | Use `sacli ConfigPut` for OpenVPN AS |
-| 6 | Ansible temp directory | Playbook permission errors | `ansible_remote_tmp: /tmp/.ansible-${USER}` |
+![Gotchas summary: cert-manager IAM, renewBefore window, Docker Hub rate limits, VPC endpoint private DNS, sacli vs file copy, Ansible temp directory — each with symptom and fix.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part1-table-gotchas.png)
 
 
 ## Cost
 
-| Item | Monthly Cost | Unit Price | Notes |
-|------|-------------|------------|-------|
-| Secrets Manager | ~$0.40 | $0.40/secret/month + $0.05/10K API calls | API cost negligible with fingerprint skipping |
-| VPC Endpoint | ~$7.20 | $0.01/hour/AZ (~$7.20/AZ/month) | Only if not already deployed; shared across services |
-| ECR storage | ~$0.008 | $0.10/GB/month | Publisher image is ~80MB; first 500MB free year one |
-| CronJob compute | $0 | — | Runs on existing K8s nodes |
+![Cost table: Secrets Manager ~$0.40/mo, VPC Endpoint ~$7.20/mo/AZ, ECR storage ~$0.008/mo, CronJob compute $0 — with unit prices and notes.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part1-table-cost.png)
 
 
 ## What's Next

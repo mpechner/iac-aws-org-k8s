@@ -21,12 +21,7 @@ This secret contains a TLS private key. Anyone who can read it can impersonate y
 
 ### Principle: Minimum Readers, Scoped Writers
 
-| Role | Permissions | Scope |
-|------|------------|-------|
-| **Publisher CronJob** (K8s) | `PutSecretValue`, `CreateSecret`, `GetSecretValue` | Single secret path (e.g. `openvpn/dev`) |
-| **Consumer** (external service) | `GetSecretValue`, `DescribeSecret` | Single secret path |
-| **Terraform execution role** | `DescribeSecret` (if used for data lookups) | Single secret path |
-| **Everyone else** | Nothing | — |
+![Permissions matrix: Publisher CronJob gets PutSecretValue/CreateSecret/GetSecretValue; Consumer gets GetSecretValue/DescribeSecret; Terraform role gets DescribeSecret; everyone else gets nothing — all scoped to a single secret path.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part2-table-permissions.png)
 
 Nobody else — not your CI/CD pipeline, not your developers, not other services — should have access. This is a private key, not a config value.
 
@@ -330,14 +325,7 @@ This is safe because Ansible's temp files don't contain secret material — they
 
 ## Security Gotchas Summary
 
-| # | Issue | Risk | Fix |
-|---|-------|------|-----|
-| 1 | Node role too broad | Every pod can write certs + modify DNS | IRSA: scope AWS perms to publisher SA (see P-003) |
-| 2 | Default KMS key | Any `kms:Decrypt` principal can read secrets | Customer-managed KMS key with explicit policy (see P-002) |
-| 3 | No resource policy | IAM-only access control on secrets | Attach Secrets Manager resource policy with explicit Deny |
-| 4 | IMDSv1 enabled | SSRF = instant credential theft | `http_tokens = "required"` on all instances |
-| 5 | Certs in `/tmp` | World-readable private keys | Secure root-owned temp dir with trap cleanup |
-| 6 | No CloudTrail alarm | Silent unauthorized access | Monitor `GetSecretValue` for unexpected principals |
+![Security gotchas: broad node role, default KMS key, missing resource policy, IMDSv1 enabled, certs in /tmp, no CloudTrail alarm — each with risk and fix.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part2-table-gotchas.png)
 
 
 ## Extending the Security Model
