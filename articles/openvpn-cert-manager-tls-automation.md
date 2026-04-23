@@ -28,7 +28,7 @@ The pipeline has three stages that are cleanly decoupled from each other:
 
 Each stage knows nothing about the others. The Kubernetes side doesn't know or care what consumes the secret. The external service doesn't know or care how the cert was issued. Secrets Manager is the contract boundary.
 
-![Architecture diagram: three-stage certificate pipeline — Issue (cert-manager in K8s), Publish (CronJob to Secrets Manager), Consume (external services pull and install)](cert-pipeline-architecture.png)
+![Architecture diagram: three-stage certificate pipeline — Issue (cert-manager in K8s), Publish (CronJob to Secrets Manager), Consume (external services pull and install)](images/cert-pipeline-architecture.png)
 
 **Why this decoupling matters:**
 
@@ -397,7 +397,7 @@ AWS_CLI="aws --endpoint-url https://secretsmanager.${SECRET_REGION}.amazonaws.co
 
 This is the fallback. If the VPC endpoint SG rule is misconfigured, or if the endpoint is temporarily unavailable, the sync script still works by going through the public internet. Since the request is TLS-encrypted and authenticated with IAM SigV4, there's no security downside — it's the same path you'd use without VPC endpoints at all.
 
-![Network diagram: VPC endpoint DNS gotcha — public subnet services resolve to private endpoint IPs, causing timeouts. Fix 1: SG rule allowing OpenVPN SG to Endpoint SG on 443. Fix 2: explicit --endpoint-url bypassing VPC endpoint DNS.](vpc-endpoint-dns-gotcha.png)
+![Network diagram: VPC endpoint DNS gotcha — public subnet services resolve to private endpoint IPs, causing timeouts. Fix 1: SG rule allowing OpenVPN SG to Endpoint SG on 443. Fix 2: explicit --endpoint-url bypassing VPC endpoint DNS.](images/vpc-endpoint-dns-gotcha.png)
 
 **Gotcha #4: VPC endpoints with private DNS.** This will bite *any* service in a public subnet that calls an AWS API for which you have a VPC interface endpoint. It's not specific to Secrets Manager. If you have endpoints for STS, KMS, or SSM, the same DNS override applies. Either open the endpoint SG or use explicit endpoint URLs.
 

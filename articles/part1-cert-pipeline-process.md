@@ -28,7 +28,7 @@ The pipeline has three stages that are cleanly decoupled from each other:
 
 Each stage knows nothing about the others. The Kubernetes side doesn't know or care what consumes the secret. The external service doesn't know or care how the cert was issued. Secrets Manager is the contract boundary.
 
-![Architecture diagram: three-stage certificate pipeline — Issue (cert-manager in K8s), Publish (CronJob to Secrets Manager), Consume (external services pull and install)](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/cert-pipeline-architecture.png)
+![Architecture diagram: three-stage certificate pipeline — Issue (cert-manager in K8s), Publish (CronJob to Secrets Manager), Consume (external services pull and install)](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/images/cert-pipeline-architecture.png)
 
 **Why this decoupling matters:**
 
@@ -47,7 +47,7 @@ My OpenVPN Access Server runs on an EC2 instance in a public subnet. It had a st
 
 Here's the specific setup:
 
-![Setup: RKE2 + cert-manager + Route53 + Secrets Manager; OpenVPN Access Server on EC2; publish every 6h, consume every 30 min in the midnight–3am window.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part1-table-setup.png)
+![Setup: RKE2 + cert-manager + Route53 + Secrets Manager; OpenVPN Access Server on EC2; publish every 6h, consume every 30 min in the midnight–3am window.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/images/part1-table-setup.png)
 
 
 ## The Kubernetes Side — Issue and Publish
@@ -218,7 +218,7 @@ I implemented both fixes:
 1. **SG rule** letting the OpenVPN SG reach the endpoint SG on 443 (keeps traffic on the AWS network).
 2. **Explicit `--endpoint-url`** in the sync script as a fallback (bypasses VPC endpoint DNS entirely, goes over public internet with TLS + SigV4).
 
-![Network diagram: VPC endpoint DNS gotcha — public subnet services resolve to private endpoint IPs, causing timeouts.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/vpc-endpoint-dns-gotcha.png)
+![Network diagram: VPC endpoint DNS gotcha — public subnet services resolve to private endpoint IPs, causing timeouts.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/images/vpc-endpoint-dns-gotcha.png)
 
 **Gotcha #4: VPC endpoints with private DNS.** This bites any service in a public subnet calling any AWS API for which you have an interface endpoint — not just Secrets Manager.
 
@@ -266,12 +266,12 @@ The `fingerprint_sha256` is the idempotency key — the publisher skips writes a
 
 ## Gotchas Summary
 
-![Gotchas summary: cert-manager IAM, renewBefore window, Docker Hub rate limits, VPC endpoint private DNS, sacli vs file copy, Ansible temp directory — each with symptom and fix.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part1-table-gotchas.png)
+![Gotchas summary: cert-manager IAM, renewBefore window, Docker Hub rate limits, VPC endpoint private DNS, sacli vs file copy, Ansible temp directory — each with symptom and fix.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/images/part1-table-gotchas.png)
 
 
 ## Cost
 
-![Cost table: Secrets Manager ~$0.40/mo, VPC Endpoint ~$7.20/mo/AZ, ECR storage ~$0.008/mo, CronJob compute $0 — with unit prices and notes.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/part1-table-cost.png)
+![Cost table: Secrets Manager ~$0.40/mo, VPC Endpoint ~$7.20/mo/AZ, ECR storage ~$0.008/mo, CronJob compute $0 — with unit prices and notes.](https://raw.githubusercontent.com/mpechner/iac-aws-org-k8s/main/articles/images/part1-table-cost.png)
 
 
 ## What's Next

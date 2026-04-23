@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 ARTICLES_DIR = Path(__file__).resolve().parent.parent
+IMAGES_DIR = ARTICLES_DIR / "images"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 CSS = """
@@ -198,7 +199,8 @@ def build_html(headers, rows) -> str:
 
 
 def render(filename: str, width: int, height: int, html: str) -> Path:
-    out_path = ARTICLES_DIR / filename
+    IMAGES_DIR.mkdir(exist_ok=True)
+    out_path = IMAGES_DIR / filename
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
         f.write(html)
         html_path = f.name
@@ -229,6 +231,9 @@ def main():
         out = render(filename, w, h, html)
         size = out.stat().st_size
         print(f"  wrote {out.relative_to(ARTICLES_DIR.parent)} ({size:,} bytes)")
+
+
+
 
 
 if __name__ == "__main__":
