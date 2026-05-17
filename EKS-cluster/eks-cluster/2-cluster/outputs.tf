@@ -44,14 +44,10 @@ output "bootstrap_node_group_name" {
 }
 
 output "kubeconfig_instructions" {
-  description = "Instructions for setting up kubectl access to this EKS cluster"
+  description = "Command to configure kubectl. Requires SSO session active in the dev account and VPN connection."
   value       = <<-EOT
-    To configure kubectl access, run:
 
-    aws eks update-kubeconfig --region ${var.region} --name ${var.cluster_name} --alias ${var.cluster_name} --assume-role-arn arn:aws:iam::${var.account_id}:role/terraform-execute
-
-    Then (for your own shell only — the eks-apps terraform stack does not depend on current-context):
-    kubectl config use-context ${var.cluster_name}
+    aws eks update-kubeconfig --region ${var.region} --name ${var.cluster_name} --alias ${var.cluster_name}
     kubectl get nodes
   EOT
 }

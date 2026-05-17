@@ -10,9 +10,10 @@ variable "vpc_cidr" {
 }
 
 variable "admin_role_arn" {
-  description = "IAM role ARN granted cluster-admin access (e.g. SSO AdministratorAccess role)"
+  description = "IAM role ARN granted cluster-admin access (e.g. SSO AdministratorAccess role). Required because SSO role names contain a random suffix that can't be derived."
   type        = string
 }
+
 
 variable "region" {
   description = "AWS region"

@@ -27,7 +27,7 @@ Update the `backend "s3" { }` block in each file before running `terraform init`
 | Component | Required values |
 |-----------|----------------|
 | `EKS-cluster/eks-cluster/1-iam` | `account_id` |
-| `EKS-cluster/eks-cluster/2-cluster` | `account_id`, `cluster_name`, `subnet_ids`, `vpc_id` |
+| `EKS-cluster/eks-cluster/2-cluster` | `account_id`, `admin_role_arn` |
 | `EKS-cluster/eks-cluster/3-karpenter` | `account_id`, `cluster_name` |
 | `deployments/eks-apps/1-infrastructure` | `account_id`, `aws_region`, `cluster_name`, `route53_zone_id`, `letsencrypt_email` |
 | `deployments/eks-apps/2-applications` | `account_id`, `aws_region`, `cluster_name`, `letsencrypt_email`, `grafana_admin_password`, `openvpn_cert_enabled`, `openvpn_cert_hosted_zone_id`, `openvpn_cert_letsencrypt_email`, `openvpn_cert_publisher_image`, `openvpn_cert_publisher_irsa_role_arn` |
@@ -66,14 +66,27 @@ Creates the EKS control plane, bootstrap node group (3× t3.medium, tainted for 
 
 ### Step 2a — Configure kubectl
 
-After apply, configure kubectl to use the `terraform-execute` role (required — the cluster API is private and only this role has Kubernetes access):
+You need (1) AWS credentials active in the dev account as the `AdministratorAccess` SSO role, and (2) a VPN connection (cluster API is private).
+
+**How to get credentials.** Two patterns both work — pick whichever you prefer; no per-account IAM user required:
+
+- **Copy temporary credentials from the AWS access portal** (what I do). Sign in to the Identity Center portal, expand the dev account, click "Access keys" next to AdministratorAccess, copy the export block, paste into your terminal. Credentials live until the SSO session expires; re-copy when they do. No `~/.aws/config` profile, no per-account user.
+- **Or `aws sso login`** with a profile pointing at the dev account / AdministratorAccess permission set if you'd rather have the CLI manage the session.
+
+Either way, confirm you're in the right account first:
 
 ```bash
-aws eks update-kubeconfig   --region us-west-2   --name dev-eks   --alias dev-eks --assume-role-arn arn:aws:iam::<ACCOUNT_ID>:role/terraform-execute
+aws sts get-caller-identity   # Account should match account_id in terraform.tfvars
 ```
 
-To access the cluster will need credentials to the dev cluster. 
-I use the temporary credentials from the AWS access portal.
+Then configure kubectl:
+
+```bash
+aws eks update-kubeconfig --region us-west-2 --name dev-eks --alias dev-eks
+kubectl get nodes
+```
+
+No `--role-arn` needed. Your active session is already the admin role, and the cluster already has an access entry for that role (granted by `2-cluster` apply).
 
 To test, run k9s or kubectl
 ```bash  

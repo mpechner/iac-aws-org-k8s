@@ -21,6 +21,10 @@ locals {
   # EKS nodes reuse the dev-rke-* subnets (indices 3-5 of private_subnets).
   # VPC outputs all 6 private subnets: [priv-a, priv-b, priv-c, rke-a, rke-b, rke-c]
   eks_subnet_ids = slice(data.terraform_remote_state.vpc.outputs.private_subnets, 3, 6)
+
+  # Same construction as providers.tf assume_role — terraform-execute is the
+  # codebase-wide convention for the Terraform execution role (created in TF_org-user/).
+  terraform_execute_role_arn = "arn:aws:iam::${var.account_id}:role/terraform-execute"
 }
 
 # ------------------------------------------------------------------------------
@@ -50,8 +54,12 @@ resource "aws_eks_cluster" "this" {
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   access_config {
-    authentication_mode                         = "API_AND_CONFIG_MAP"
-    bootstrap_cluster_creator_admin_permissions = true
+    authentication_mode = "API_AND_CONFIG_MAP"
+    # false: do NOT auto-grant cluster-admin to the principal that creates the
+    # cluster. Otherwise AWS auto-creates an access entry for terraform-execute
+    # which then collides with aws_eks_access_entry.terraform_execute below on
+    # every fresh apply. All admin access is granted via explicit access entries.
+    bootstrap_cluster_creator_admin_permissions = false
   }
 }
 
@@ -103,6 +111,24 @@ resource "aws_eks_access_policy_association" "admin" {
   }
 }
 
+# Terraform execution role — needs cluster-admin so operators can run kubectl
+# after `aws eks update-kubeconfig ... --assume-role-arn <terraform_execute_role_arn>`
+resource "aws_eks_access_entry" "terraform_execute" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = local.terraform_execute_role_arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "terraform_execute" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = local.terraform_execute_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+}
+
 # ------------------------------------------------------------------------------
 # Bootstrap Managed Node Group
 # Hosts Karpenter controller only. Tainted so nothing else schedules here.
@@ -131,12 +157,12 @@ resource "aws_eks_node_group" "karpenter_bootstrap" {
   node_group_name = "${var.cluster_name}-karpenter-bootstrap"
   node_role_arn   = data.terraform_remote_state.iam.outputs.bootstrap_node_role_arn
   subnet_ids      = local.eks_subnet_ids
-  instance_types = [var.bootstrap_instance_type]
+  instance_types  = [var.bootstrap_instance_type]
 
   scaling_config {
     min_size     = var.bootstrap_node_count
     desired_size = var.bootstrap_node_count
-    max_size     = var.bootstrap_node_count + 1  # 1 surge node during rolling update
+    max_size     = var.bootstrap_node_count + 1 # 1 surge node during rolling update
   }
 
   # Roll one node at a time: cordon → drain → replace → next.
