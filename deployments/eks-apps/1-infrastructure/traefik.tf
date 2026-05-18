@@ -56,12 +56,12 @@ resource "helm_release" "traefik" {
           "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.public_subnet_ids)
         } : {},
         {
-          "service.beta.kubernetes.io/aws-load-balancer-type"                  = "nlb"
-          "service.beta.kubernetes.io/aws-load-balancer-scheme"                = "internet-facing"
-          "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"       = "instance"
-          "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol"  = "TCP"
-          "service.beta.kubernetes.io/aws-load-balancer-healthcheck-port"      = "traffic-port"
-          "external-dns.alpha.kubernetes.io/hostname"                          = "nginx.${var.route53_domain}"
+          "service.beta.kubernetes.io/aws-load-balancer-type"                 = "nlb"
+          "service.beta.kubernetes.io/aws-load-balancer-scheme"               = "internet-facing"
+          "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"      = "instance"
+          "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol" = "TCP"
+          "service.beta.kubernetes.io/aws-load-balancer-healthcheck-port"     = "traffic-port"
+          "external-dns.alpha.kubernetes.io/hostname"                         = "nginx.${var.route53_domain}"
         }
       )
       spec = {

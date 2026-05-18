@@ -124,7 +124,7 @@ terraform init
 terraform apply
 ```
 
-Deploys Traefik (dual NLB: public + internal), External-DNS, Cert-Manager, AWS Load Balancer Controller, and KEDA. Wait 2–3 minutes for all components to be ready.
+Deploys Traefik (dual NLB: public + internal), External-DNS, Cert-Manager, AWS Load Balancer Controller, KEDA, and metrics-server (powers `kubectl top`, HPA, and KEDA `cpu`/`memory` triggers). Wait 2–3 minutes for all components to be ready.
 
 ---
 

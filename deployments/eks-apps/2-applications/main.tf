@@ -164,6 +164,40 @@ resource "kubernetes_service_v1" "nginx_sample" {
   }
 }
 
+# KEDA ScaledObject — scales nginx-sample 1→5 based on CPU utilization.
+# Trigger fires when avg CPU across pods exceeds 50% of the request (50m → 25m).
+# Requires metrics-server in 1-infrastructure to be healthy (provides metrics.k8s.io).
+# Load test with: kubectl run -it --rm load --image=busybox -- /bin/sh -c \
+#   "while true; do wget -q -O- http://nginx-sample.nginx-sample/; done"
+resource "kubernetes_manifest" "nginx_scaledobject" {
+  manifest = {
+    apiVersion = "keda.sh/v1alpha1"
+    kind       = "ScaledObject"
+    metadata = {
+      name      = "nginx-sample"
+      namespace = kubernetes_namespace_v1.nginx_sample.metadata[0].name
+    }
+    spec = {
+      scaleTargetRef = {
+        name = kubernetes_deployment_v1.nginx_sample.metadata[0].name
+      }
+      minReplicaCount = 1
+      maxReplicaCount = 5
+      pollingInterval = 15
+      cooldownPeriod  = 60
+      triggers = [
+        {
+          type       = "cpu"
+          metricType = "Utilization"
+          metadata = {
+            value = "50"
+          }
+        }
+      ]
+    }
+  }
+}
+
 # ── Traefik Middlewares ───────────────────────────────────────────────────────
 # Moved here from 1-infrastructure: kubernetes_manifest validates CRDs at plan
 # time, so these must run after Traefik (deployed in 1-infrastructure) installs

@@ -147,13 +147,13 @@ resource "kubernetes_service_v1" "traefik_internal" {
     namespace = "traefik"
     annotations = merge(
       {
-        "service.beta.kubernetes.io/aws-load-balancer-type"                  = "nlb"
-        "service.beta.kubernetes.io/aws-load-balancer-internal"              = "true"
-        "service.beta.kubernetes.io/aws-load-balancer-scheme"                = "internal"
-        "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"       = "instance"
-        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol"  = "TCP"
-        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-port"      = "traffic-port"
-        "external-dns.alpha.kubernetes.io/hostname"                          = "traefik.${var.route53_domain},karpenter.${var.route53_domain},keda.${var.route53_domain},grafana.${var.route53_domain}"
+        "service.beta.kubernetes.io/aws-load-balancer-type"                 = "nlb"
+        "service.beta.kubernetes.io/aws-load-balancer-internal"             = "true"
+        "service.beta.kubernetes.io/aws-load-balancer-scheme"               = "internal"
+        "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"      = "instance"
+        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol" = "TCP"
+        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-port"     = "traffic-port"
+        "external-dns.alpha.kubernetes.io/hostname"                         = "traefik.${var.route53_domain},karpenter.${var.route53_domain},keda.${var.route53_domain},grafana.${var.route53_domain}"
       },
       length(local.private_subnet_ids) > 0 ? {
         "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", local.private_subnet_ids)
